@@ -155,6 +155,23 @@ the rest by direct source reading at `main`.
   enforcing mechanism. Folded into T-E's provenance surface — a reader
   must be able to see what they are running.
 
+- **D14 — the shipped projection rules do not cover the standard
+  `no-epic-t<id>` window convention.** Verified 2026-08-13:
+  `factory-tui-no-epic-t19-m3-preview-tag` matches neither the `e<N>-t<N>`
+  rule nor the `ms<N>` rule in `examples/projection.toml`. The
+  `<repo>-no-epic-t<id>-<goal>` name is the documented convention for a
+  standalone ticket lane, so every such window silently leaves the
+  project tree. Operator-reported: "I see only 3 child" of 6 windows.
+- **D15 — an unmatched window forks the project into two identical
+  nodes.** Unmatched windows fall back to their tmux session bucket. When
+  the session name equals a project name — the normal case — `--dump`
+  renders **two sibling `• factory-tui` nodes**: the projected one, and a
+  raw one holding the unmatched windows under their full raw names. A
+  reader cannot tell which is authoritative, and the project appears
+  twice. This is a crate defect independent of any config, and it is the
+  same family as false RUNNING: the browser misrepresenting reality, here
+  about structure rather than status.
+
 Explicitly **not** M3 work: M1 validation and the M1 research pages
 (D-2026-08-13-m1-unvalidated); tagging, packaging or announcing the
 product release.
