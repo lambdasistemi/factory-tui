@@ -42,6 +42,16 @@ bind-key S     display-popup -E -w 90% -h 90% factory-tui
 
 `factory-tui --dump` prints the tree with no UI.
 
+`factory-tui --version` prints what the binary is and quits — no tmux,
+no UI:
+
+```
+factory-tui 0.1.0 (revision 40c0c518992af708b9e140bd846a3d073fb9799c)
+```
+
+The popup shows the same line in its bottom chrome. Provenance details:
+[docs/using.md](docs/using.md).
+
 ## License
 
 [Apache-2.0](LICENSE).

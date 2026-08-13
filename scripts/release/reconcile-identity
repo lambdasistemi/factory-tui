@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# Reconcile every canonical identity surface against its authority.
+#
+# There are exactly two authorities: the crate manifest states the product
+# version, and the flake source metadata states the provenance. Everything
+# else that names an identity — Nix package metadata, shipped release-artifact
+# metadata, and the strings the built binaries print about themselves — is a
+# *surface*, and a surface that disagrees with its authority is a defect.
+#
+# Surfaces arrive as tables so that adding one is data, not new logic. An
+# empty table is treated as a defect rather than as nothing to check.
+#
+# Inputs (environment):
+#   CARGO_TOML               manifest path — the version authority
+#   EXPECTED_REVISION        flake source revision; empty when Nix had none
+#   EXPECTED_SHORT_REVISION  short form of the same; may be empty
+#   FALLBACK_REVISION        label a binary prints when given no revision
+#   PACKAGE_VERSIONS         lines: <surface> TAB <version>
+#   RUNTIME_BINARIES         lines: <surface> TAB <executable path>
+#   ARTIFACT_NAMES           lines: <surface> TAB <derivation name> TAB release|dev
+set -euo pipefail
+
+fail() {
+  printf 'IDENTITY-MISMATCH %s\n' "$*" >&2
+  exit 1
+}
+
+# The version authority, parsed here rather than accepted from a caller, so
+# this leg stays independent of whatever Nix evaluation believes.
+manifest_version() {
+  local parsed
+  parsed="$(sed -nE 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$1" | head -n1)"
+  case "$parsed" in
+    [0-9]*.[0-9]*.[0-9]*) ;;
+    *) fail "manifest: no version parsed from $1 (got '$parsed')" ;;
+  esac
+  printf '%s' "$parsed"
+}
+
+# Every version-shaped token in an artifact name must be the expected one.
+# Deliberately format-agnostic: it does not care how a bundler spells its
+# names, only that no foreign version rides along inside one.
+check_artifact_name() {
+  local surface="$1" name="$2" want="$3" shortrev="${4:-}"
+  local tokens token found=0
+  tokens="$(printf '%s' "$name" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+  [ -n "$tokens" ] || fail "$surface: no version token in artifact name '$name'"
+  while IFS= read -r token; do
+    [ -n "$token" ] || continue
+    found=1
+    [ "$token" = "$want" ] ||
+      fail "$surface: artifact name '$name' states version '$token', authority says '$want'"
+  done <<EOF
+$tokens
+EOF
+  [ "$found" = 1 ] || fail "$surface: version token scan produced nothing for '$name'"
+  if [ -n "$shortrev" ]; then
+    case "$name" in
+      *"$shortrev"*) ;;
+      *) fail "$surface: dev artifact '$name' does not carry source revision '$shortrev'" ;;
+    esac
+  fi
+}
+
+# The reconciler is itself an instrument, so it is required to reject bad
+# input before it is trusted to accept good input.
+self_test() {
+  check_artifact_name self-test "tool-1.2.3-x86_64-linux-artifacts" "1.2.3" >/dev/null ||
+    fail "self-test: rejected an artifact name that matches its authority"
+  if (check_artifact_name self-test "tool-9.9.9-x86_64-linux-artifacts" "1.2.3") 2>/dev/null; then
+    fail "self-test: accepted a foreign version token"
+  fi
+  if (check_artifact_name self-test "tool-x86_64-linux-artifacts" "1.2.3") 2>/dev/null; then
+    fail "self-test: accepted a name carrying no version at all"
+  fi
+  if (check_artifact_name self-test "tool-1.2.3-linux" "1.2.3" "deadbee") 2>/dev/null; then
+    fail "self-test: accepted a dev artifact missing its source revision"
+  fi
+  printf 'SELF-TEST ok\n'
+}
+
+main() {
+  self_test
+
+  local manifest expected_revision
+  manifest="$(manifest_version "$CARGO_TOML")"
+  if [ -n "${EXPECTED_REVISION:-}" ]; then
+    expected_revision="$EXPECTED_REVISION"
+  else
+    expected_revision="$FALLBACK_REVISION"
+  fi
+  printf 'AUTHORITY version=%s revision=%s\n' "$manifest" "$expected_revision"
+
+  local surface value path text seen version revision name kind
+  local packages=0 runtimes=0 artifacts=0
+
+  while IFS="$(printf '\t')" read -r surface value; do
+    [ -n "$surface" ] || continue
+    packages=$((packages + 1))
+    printf 'SURFACE %s package-version=%s\n' "$surface" "$value"
+    [ "$value" = "$manifest" ] ||
+      fail "$surface: package metadata says '$value', authority says '$manifest'"
+  done <<EOF
+${PACKAGE_VERSIONS:-}
+EOF
+
+  while IFS="$(printf '\t')" read -r surface path; do
+    [ -n "$surface" ] || continue
+    runtimes=$((runtimes + 1))
+    text="$("$path" --version)"
+    printf 'SURFACE %s runtime=%s\n' "$surface" "$text"
+    seen='s/^factory-tui ([^ ]+) \(revision (.+)\)$/'
+    version="$(printf '%s' "$text" | sed -nE "${seen}\\1/p")"
+    revision="$(printf '%s' "$text" | sed -nE "${seen}\\2/p")"
+    [ -n "$version" ] || fail "$surface: unreadable identity line '$text'"
+    [ -n "$revision" ] || fail "$surface: no revision in identity line '$text'"
+    [ "$version" = "$manifest" ] ||
+      fail "$surface: binary says version '$version', authority says '$manifest'"
+    [ "$revision" = "$expected_revision" ] ||
+      fail "$surface: binary says revision '$revision', flake source says '$expected_revision'"
+  done <<EOF
+${RUNTIME_BINARIES:-}
+EOF
+
+  while IFS="$(printf '\t')" read -r surface name kind; do
+    [ -n "$surface" ] || continue
+    artifacts=$((artifacts + 1))
+    printf 'SURFACE %s artifact=%s kind=%s\n' "$surface" "$name" "$kind"
+    case "$kind" in
+      release) check_artifact_name "$surface" "$name" "$manifest" ;;
+      dev) check_artifact_name "$surface" "$name" "$manifest" "${EXPECTED_SHORT_REVISION:-}" ;;
+      *) fail "$surface: unknown artifact kind '$kind'" ;;
+    esac
+  done <<EOF
+${ARTIFACT_NAMES:-}
+EOF
+
+  # A table that shrank to nothing would otherwise pass in silence.
+  [ "$packages" -gt 0 ] || fail "no package-metadata surfaces were offered"
+  [ "$runtimes" -gt 0 ] || fail "no runtime surfaces were offered"
+  [ "$artifacts" -gt 0 ] || fail "no release-artifact surfaces were offered"
+
+  printf 'IDENTITY-RECONCILED version=%s revision=%s packages=%d runtimes=%d artifacts=%d\n' \
+    "$manifest" "$expected_revision" "$packages" "$runtimes" "$artifacts"
+}
+
+main "$@"

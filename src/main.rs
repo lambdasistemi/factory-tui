@@ -5,9 +5,11 @@
 //! Enter jumps the attached client there and exits.
 //!
 //! `--dump` prints the tree and quits (no TUI).
+//! `--version` prints the build identity and quits (no TUI, no tmux).
 
 mod ansi;
 mod app;
+mod build_info;
 mod config;
 mod geometry;
 mod peek;
@@ -29,7 +31,19 @@ use ratatui::Terminal;
 
 use app::App;
 
+/// True only for the standalone version request. Reads arguments only: it
+/// never consults tmux or the terminal.
+fn is_version_request(args: &[String]) -> bool {
+    args.len() == 1 && args[0] == "--version"
+}
+
 fn main() -> io::Result<()> {
+    let args: Vec<String> = env::args().skip(1).collect();
+    if is_version_request(&args) {
+        println!("{}", build_info::display(build_info::current()));
+        return Ok(());
+    }
+
     if env::args().any(|a| a == "--dump") {
         let config = config::load();
         let wins = tmux::query_all()?;
@@ -76,5 +90,38 @@ fn run(
         if app.should_quit {
             return Ok(());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_version_request;
+
+    fn args(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    #[test]
+    fn the_standalone_version_flag_is_a_version_request() {
+        assert!(is_version_request(&args(&["--version"])));
+    }
+
+    #[test]
+    fn no_arguments_is_not_a_version_request() {
+        assert!(!is_version_request(&args(&[])));
+    }
+
+    #[test]
+    fn other_commands_are_not_version_requests() {
+        assert!(!is_version_request(&args(&["--dump"])));
+        assert!(!is_version_request(&args(&["-V"])));
+        assert!(!is_version_request(&args(&["version"])));
+        assert!(!is_version_request(&args(&["--versions"])));
+    }
+
+    #[test]
+    fn a_version_flag_among_other_arguments_is_not_the_supported_request() {
+        assert!(!is_version_request(&args(&["--version", "--dump"])));
+        assert!(!is_version_request(&args(&["--dump", "--version"])));
     }
 }

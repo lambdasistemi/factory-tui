@@ -15,7 +15,7 @@ let
       program = pkgs.lib.getExe app;
     };
 
-  checkNames = [ "clippy" "fmt" "nextest" "deny" "doc" ];
+  checkNames = [ "clippy" "fmt" "nextest" "deny" "doc" "version-consistency" ];
   checkTargets =
     pkgs.lib.concatMapStringsSep " " (n: ".#checks.${system}.${n}") checkNames;
 in
