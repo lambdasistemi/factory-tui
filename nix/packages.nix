@@ -1,11 +1,9 @@
-# Native `factory-tui` CLI. `meta.mainProgram` lets `nix run` and
-# bundlers find the executable. Building this derivation is the GC
-# root the unrooted `target/release` binary lacked.
+# Native CLI plus its static musl sibling. `meta.mainProgram` is
+# required so the NixOS bundlers can resolve the executable.
 { craneEnv }:
 let
-  inherit (craneEnv) craneLib commonArgs cargoArtifacts;
-in
-{
+  inherit (craneEnv) craneLib commonArgs cargoArtifacts muslArgs cargoArtifactsMusl;
+
   cli = craneLib.buildPackage (
     commonArgs
     // {
@@ -13,4 +11,15 @@ in
       meta.mainProgram = "factory-tui";
     }
   );
+
+  cli-musl = craneLib.buildPackage (
+    muslArgs
+    // {
+      cargoArtifacts = cargoArtifactsMusl;
+      meta.mainProgram = "factory-tui";
+    }
+  );
+in
+{
+  inherit cli cli-musl;
 }

@@ -20,10 +20,24 @@ M1 records the research that decides the product:
 The standing prototype in this repository is a browse camera: a tree on
 the left, a coloured snapshot of one seat on the right, Enter to jump.
 
-## Build
+## Install
+
+Tagged releases ship Linux AppImage / DEB / RPM / static-musl tarballs
+and a Homebrew formula on Apple Silicon:
+
+```
+brew tap lambdasistemi/tap
+brew install factory-tui
+```
+
+https://github.com/lambdasistemi/factory-tui/releases/latest
+
+From source: `nix build github:lambdasistemi/factory-tui`.
+
+## Run
+
+Inside tmux: `F1` or `prefix + S` opens the browser (local bind).
 
 ```
 nix develop -c just build
 ```
-
-Inside tmux: `F1` or `prefix + S` opens the browser (local bind).

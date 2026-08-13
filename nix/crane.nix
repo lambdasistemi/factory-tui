@@ -21,7 +21,19 @@ let
   };
 
   cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
+  # Static musl tarball (Linux only). Pure Rust (ratatui + crossterm).
+  muslTarget =
+    if pkgs.stdenv.hostPlatform.isAarch64
+    then "aarch64-unknown-linux-musl"
+    else "x86_64-unknown-linux-musl";
+  muslArgs = commonArgs // {
+    CARGO_BUILD_TARGET = muslTarget;
+    CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
+    doCheck = false;
+  };
+  cargoArtifactsMusl = craneLib.buildDepsOnly muslArgs;
 in
 {
-  inherit craneLib commonArgs cargoArtifacts;
+  inherit craneLib commonArgs cargoArtifacts muslArgs cargoArtifactsMusl;
 }

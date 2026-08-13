@@ -21,12 +21,15 @@ Prototype (browse camera)
   🟡 Nix-rooted `.#cli` + crane checks on this PR
   ⏳ standing --serve embed (not M1)
 
+Release
+  🟡 release-please rust + Linux/Darwin artifact workflows on this PR
+  ⏳ first `v*` tag after merge (no GitHub release yet)
+
 Next after M1
-  ⏳ crane-rooted `nix flake check`
   ⏳ home session + --serve for tablet attach
 ```
 
 ## Blockers
 
-None for publishing the record. The prototype binary still dies after
-a Nix store GC until a later milestone roots it.
+None for publishing the record. The first installable GitHub release
+waits on this PR merging and a later `v*` tag.
