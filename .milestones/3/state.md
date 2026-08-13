@@ -74,11 +74,13 @@ regexes are.
 
 ## Unenforced contracts
 
-Seven cross-boundary contracts are recorded. **Six still read
+Eight cross-boundary contracts are recorded. **Seven still read
 `enforced: NONE`** — including the one that is actively violated (status
 semantics) and the declared-but-unwired `I5-NO-HOSTNAMES` grep, which
 exists in the specs and in neither CI nor the Nix checks. The seventh
-(milestone artifact) moved to DESIGNED today. Each gets a commissioned
+(milestone artifact) moved to DESIGNED today. C8 was registered before its
+code exists, so the check ships with the feature instead of after a defect
+teaches us to want it. Each gets a commissioned
 check or a recorded waiver before acceptance — none stays silent.
 
 Full detail: `.milestones/3/registry.md` on the `milestones` branch.

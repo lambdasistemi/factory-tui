@@ -142,3 +142,32 @@ enforced:  DESIGNED 2026-08-13 by A-003; not yet built. **Changed** from
            (D-2026-08-13-nix-first), binaries are an explicit fallback,
            and this line is temporary.
 owner:     T-B
+
+## C8 — tree structure ⇄ name reinterpretation
+
+parties:   the raw tmux census (sessions, windows, panes), configured
+           reinterpreters, every reader of the tree
+invariant: **For any tmux state and any reinterpreter configuration, the
+           set of nodes and the parent relation are identical with and
+           without reinterpretation applied. Only display strings
+           differ.** No interpolation of synthesized levels, no splitting
+           of one node into several, no merging, re-parenting, hiding or
+           reordering.
+enforced:  NONE yet — the mechanism does not exist. This entry exists
+           **before** the code so the check ships with it rather than
+           after a defect teaches us to want it.
+
+           Origin: the deleted projection violated exactly this. D14 —
+           `no-epic-t<id>` matched no rule, so those windows left the
+           project tree. D15 — unmatched windows fell into a session
+           bucket that collided with a synthesized folder, rendering two
+           identical `• factory-tui` nodes. Both are structural lies
+           produced by a feature whose stated job was presentation.
+
+           Required: a property check over arbitrary tmux states and
+           reinterpreter configs asserting node-set and parent-relation
+           equality, demonstrated red against a reinterpreter that tries
+           to split a node. A reinterpreter that *can* alter structure has
+           become a projection and is rejected in review regardless of
+           what it currently does.
+owner:     the tree ticket (queued behind T-E #24)
