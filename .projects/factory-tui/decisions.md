@@ -38,7 +38,19 @@ this box. Unknown agents stay unmarked. The configuration schema is
 published so another agent can fill a file without guessing.
 
 Premise: operator, after false RUNNING on waiting desks.
-Status: in force. Execution: not founded as a milestone yet.
+Status: in force. Execution: M3 (no-bugs).
+
+## D-2026-08-13-m3-no-bugs
+
+M3 is the no-bugs milestone. Accepting it is what makes the product
+satisfiable for a release. It is not the release act (tag, announce).
+It owns residual and release-blocking defects on the shipped tmux
+browser, including false RUNNING and a published config schema.
+
+M2 is complete (browser + projection shipped). M1 stays unvalidated
+and unopened.
+
+Premise: operator. Status: in force. ACTIVE.
 
 ## D-2026-08-13-owner-hands
 

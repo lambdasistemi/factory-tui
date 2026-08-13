@@ -9,14 +9,17 @@ Home: https://github.com/lambdasistemi/factory-tui
 
 | Id | Outcome | State | Owner / session |
 |---|---|---|---|
-| 1 | Flat-land / compositor record and browse-camera prototype | RETAINED — unvalidated experiment; not the shipped default; do not reopen from this desk | record on `milestones` at `.milestones/1/` |
-| — | Honest, config-driven running status + published config schema | NOT FOUNDED | — |
+| 1 | Flat-land / compositor record and browse-camera prototype | RETAINED — unvalidated experiment; not the shipped default; do not reopen from this desk | record on `milestones` at `.milestones/1/`; GH still open on purpose |
+| 2 | Tmux browser + optional projection | COMPLETE — children merged; remaining defects moved to 3 | GH closed |
+| 3 | No-bugs: published product can be called good enough to release | ACTIVE | session `factory-tui`, window `factory-tui-ms3-no-bugs` (requested); runtime `/tmp/ms-3`; owner not yet STARTed |
 
-Priority: found the status/schema milestone next. M1 stays retired from
-product attention.
+Priority: 3 is the only ACTIVE execution milestone.
 
 ## Cross-milestone notes
 
-Shipped on main (v0.1.0 and follow-ups): raw tree, optional projection
-rules, Nix-first install, in-repo setup skill. Those landings do not
-make M1 the product, and they do not make process-name RUNNING correct.
+M3 is the milestone whose acceptance satisfies the product for a
+release. Release itself (tag, announce) is a later, separately
+authorized act after M3's outcome audit.
+
+M3 inherits D-2026-08-13-status-samplers: false RUNNING is a
+release-blocking bug, not a later cleanup.

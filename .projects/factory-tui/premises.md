@@ -19,3 +19,5 @@ Dated. Host/repo facts are not launch, users, or funds.
   without Nix. Source: operator.
 - 2026-08-13 — Funds, market launch, and public commitment beyond the
   public repo: unknown. Do not infer from GitHub visibility.
+- 2026-08-13 — Operator: M3 is the milestone whose acceptance satisfies
+  the product for a release. That is not itself the release act.

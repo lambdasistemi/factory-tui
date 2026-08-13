@@ -6,17 +6,17 @@ Ledger revision: this file's commit on `milestones`
 
 ## Next product action
 
-Found one milestone for D-2026-08-13-status-samplers:
+Wait for the machine owner to seat `factory-tui-ms3-no-bugs`, then
+dispatch the milestone owner with
+`/tmp/projects/factory-tui/ms-3/brief.md`. Do not implement from this
+desk.
 
-- config-driven running samplers (no agent names in crate logic)
-- published configuration schema
-- skill selects sampler recipes from the live box
+## Active
 
-Then ask the machine/session owner for a milestone session and
-dispatch a milestone owner. Do not implement from this desk.
+M3 no-bugs — https://github.com/lambdasistemi/factory-tui/milestone/3
 
 ## Do not
 
 - Reopen M1
-- Direct the leftover `factory-tui-e8-t5-raw-tree` lane
-- Infer launch or users from the public repo
+- Treat leftover `factory-tui-e8-t5-raw-tree` as the M3 desk
+- Tag or announce a release from M3 acceptance
