@@ -9,7 +9,7 @@ use ratatui::Frame;
 use crate::ansi;
 use crate::app::App;
 use crate::geometry::rects_for;
-use crate::tmux::Pane;
+use crate::tmux::{self, Pane};
 use crate::tree::{status_label, Kind, Status};
 
 impl App {
@@ -127,14 +127,9 @@ impl App {
         self.schematic_area = split[1];
         self.preview_area = split[2];
 
-        let pane_label = self
-            .preview_pane_meta()
-            .map(|p| format!("{}:{}", p.index, p.cmd))
-            .unwrap_or_else(|| "?".into());
-        let mut info = vec![format!(
-            "preview {pane_label}  ·  {} pane(s)  ·  snapshot, not a live embed",
-            win.panes.len(),
-        )];
+        let shown_pane = self.preview_pane_meta().cloned();
+        let mut info =
+            vec![preview_meta_line(shown_pane.as_ref(), split[0].width, win.panes.len())];
         info.extend(self.peek.iter().cloned());
         f.render_widget(
             Paragraph::new(info.join("\n")).style(Style::default().add_modifier(Modifier::DIM)),
@@ -155,7 +150,7 @@ impl App {
                     Block::default()
                         .borders(Borders::ALL)
                         .border_style(style)
-                        .title(format!(" {}:{} ", p.index, p.cmd)),
+                        .title(box_title(Some(p), r.width)),
                     r,
                 );
             }
@@ -163,7 +158,7 @@ impl App {
 
         let preview_block = Block::default()
             .borders(Borders::ALL)
-            .title(format!(" {pane_label} "))
+            .title(box_title(shown_pane.as_ref(), self.preview_area.width))
             .border_style(Style::default().fg(Color::DarkGray));
         let text_area = preview_block.inner(self.preview_area);
         f.render_widget(preview_block, self.preview_area);
@@ -193,24 +188,94 @@ impl App {
 /// Fixed lead-in of the preview metadata line.
 const META_PREFIX: &str = "preview ";
 
-/// Terminal cells a string occupies. RED: not implemented.
-fn cells(_text: &str) -> usize {
-    unimplemented!("no cell-width measure for pane labels yet")
+/// Terminal cells a string occupies, measured the way ratatui places it.
+fn cells(text: &str) -> usize {
+    Span::raw(text).width()
 }
 
-/// One safe, width-bounded pane identity. RED: not implemented.
-fn pane_label(_pane: &Pane, _max_width: u16) -> String {
-    unimplemented!("no shared sanitized pane label yet")
+/// Drop escape sequences first, then every remaining control character, then
+/// collapse the whitespace that leaves behind. A pane title is written by
+/// whatever runs in the pane, so raw it can recolour, erase, or — where a label
+/// is drawn from a plain string — split the frame it lands in.
+///
+/// The control pass does not assume what `strip_ansi` chooses to keep, so it
+/// is redundant with today's keep-list and no input can distinguish it — see
+/// the equivalent mutant M07 in the campaign log. It stays as this function's
+/// own stated contract, not as a check anything relies on.
+fn sanitize_label(raw: &str) -> String {
+    let stripped = tmux::strip_ansi(raw);
+    let plain: String = stripped.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    plain.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Title for a bordered pane box. RED: not implemented.
-fn box_title(_pane: Option<&Pane>, _box_width: u16) -> String {
-    unimplemented!("pane box titles are still composed inline")
+/// Cut to `max` terminal cells, marking the cut so a shortened title still
+/// reads as one.
+fn fit_cells(text: &str, max: u16) -> String {
+    let max = max as usize;
+    if max == 0 {
+        return String::new();
+    }
+    if cells(text) <= max {
+        return text.to_string();
+    }
+    let budget = max - 1;
+    let mut out = String::new();
+    let mut used = 0;
+    let mut buf = [0u8; 4];
+    for ch in text.chars() {
+        let w = cells(ch.encode_utf8(&mut buf));
+        if used + w > budget {
+            break;
+        }
+        out.push(ch);
+        used += w;
+    }
+    out.push('…');
+    out
 }
 
-/// The metadata line above the preview. RED: not implemented.
-fn preview_meta_line(_pane: Option<&Pane>, _width: u16, _pane_count: usize) -> String {
-    unimplemented!("the preview metadata line is still composed inline")
+/// One identity rule for every pane label site: the operator-authored tmux
+/// title when it survives sanitation, otherwise the `{index}:{command}`
+/// identity this view has always used. Never blank while a cell is free, never
+/// wider than `max_width` terminal cells.
+fn pane_label(pane: &Pane, max_width: u16) -> String {
+    let title = sanitize_label(&pane.title);
+    let text = if title.is_empty() {
+        let fallback = sanitize_label(&format!("{}:{}", pane.index, pane.cmd));
+        if fallback.is_empty() {
+            "?".to_string()
+        } else {
+            fallback
+        }
+    } else {
+        title
+    };
+    fit_cells(&text, max_width)
+}
+
+fn label_or_unknown(pane: Option<&Pane>, budget: u16) -> String {
+    match pane {
+        Some(pane) => pane_label(pane, budget),
+        None => fit_cells("?", budget),
+    }
+}
+
+/// Title for a bordered pane box. A box of `box_width` offers `box_width - 2`
+/// title cells, and the padding below costs two more.
+fn box_title(pane: Option<&Pane>, box_width: u16) -> String {
+    if box_width < 4 {
+        return String::new();
+    }
+    format!(" {} ", label_or_unknown(pane, box_width - 4))
+}
+
+/// The metadata line above the preview. The label gets exactly the cells this
+/// line has left once its fixed decoration is accounted for.
+fn preview_meta_line(pane: Option<&Pane>, width: u16, pane_count: usize) -> String {
+    let suffix = format!("  ·  {pane_count} pane(s)  ·  snapshot, not a live embed");
+    let fixed = u16::try_from(cells(META_PREFIX) + cells(&suffix)).unwrap_or(u16::MAX);
+    let label = label_or_unknown(pane, width.saturating_sub(fixed));
+    format!("{META_PREFIX}{label}{suffix}")
 }
 
 fn tail_text(raw: &str, height: usize, from_bottom: usize) -> Text<'static> {
@@ -272,8 +337,7 @@ mod tests {
     /// A title a hostile pane can set with a single escape sequence: colour,
     /// screen erase, an OSC window-title write, a carriage return, a newline,
     /// a tab, a backspace, and a raw C1 CSI byte.
-    const HOSTILE: &str =
-        "\u{1b}[31m\u{1b}[2Jred\u{1b}]0;owned\u{7}\r\nsecond\tline\u{8}\u{9b}5m";
+    const HOSTILE: &str = "\u{1b}[31m\u{1b}[2Jred\u{1b}]0;owned\u{7}\r\nsecond\tline\u{8}\u{9b}5m";
 
     /// What `HOSTILE` must look like once it is safe to draw.
     const HOSTILE_SAFE: &str = "red second line5m";
@@ -387,6 +451,19 @@ mod tests {
             let label = pane_label(&cjk, width);
             assert!(cells(&label) <= width as usize, "wide label {label:?} at width {width}");
         }
+
+        // Each site is bounded by its own real budget, not by `pane_label`
+        // alone: a bordered box spends two cells on its border, and the
+        // metadata line spends the rest on fixed decoration.
+        for width in 0..=48u16 {
+            let title = box_title(Some(&long), width);
+            assert!(
+                cells(&title) <= width.saturating_sub(2) as usize,
+                "box title {title:?} does not fit a {width}-cell box"
+            );
+        }
+        let meta = preview_meta_line(Some(&long), 60, 2);
+        assert!(cells(&meta) <= 60, "metadata line took {} cells: {meta:?}", cells(&meta));
 
         // The measure must agree with what ratatui paints: a label budgeted at
         // ten cells, drawn into a twenty-four cell row, must leave the rest of

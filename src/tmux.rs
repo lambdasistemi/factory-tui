@@ -51,7 +51,7 @@ fn fire(args: &[&str]) -> io::Result<()> {
 }
 
 fn parse_pane(f: &[&str]) -> Option<Pane> {
-    if f.len() < 9 {
+    if f.len() < 10 {
         return None;
     }
     Some(Pane {
@@ -64,27 +64,29 @@ fn parse_pane(f: &[&str]) -> Option<Pane> {
         active: f[6].trim() == "1",
         cmd: f[7].to_string(),
         path: f[8].to_string(),
-        // RED: the census does not obtain a title yet.
-        title: String::new(),
+        title: f[9].to_string(),
     })
 }
 
-/// Group one `list-panes` census into windows. RED: not implemented.
-fn parse_query(_raw: &str) -> Vec<Win> {
-    unimplemented!("the census does not obtain or carry #{{pane_title}} yet")
-}
+/// One row per pane. `#{pane_title}` is requested last on purpose: a pane can
+/// put anything in its own title, including a tab, and a trailing field can
+/// only ever add fields — never shift the ones parsed before it.
+const QUERY_FORMAT: &str = "#{session_name}\t#{session_attached}\t#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_width}\t#{window_height}\t#{pane_id}\t#{pane_index}\t#{pane_left}\t#{pane_top}\t#{pane_width}\t#{pane_height}\t#{pane_active}\t#{pane_current_command}\t#{pane_current_path}\t#{pane_title}";
 
-/// Every window on the host, each with its panes.
-pub fn query_all() -> io::Result<Vec<Win>> {
-    let fmt = "#{session_name}\t#{session_attached}\t#{window_id}\t#{window_index}\t#{window_name}\t#{window_active}\t#{window_width}\t#{window_height}\t#{pane_id}\t#{pane_index}\t#{pane_left}\t#{pane_top}\t#{pane_width}\t#{pane_height}\t#{pane_active}\t#{pane_current_command}\t#{pane_current_path}";
-    let raw = out(&["list-panes", "-a", "-F", fmt])?;
+/// Fields `QUERY_FORMAT` produces. The row guard and the pane slice below both
+/// read it, so they cannot drift apart.
+const QUERY_FIELDS: usize = 18;
+
+/// Group one `list-panes` census into windows, dropping any row that is not in
+/// the format above.
+fn parse_query(raw: &str) -> Vec<Win> {
     let mut wins: Vec<Win> = Vec::new();
     for line in raw.lines() {
         let f: Vec<&str> = line.split('\t').collect();
-        if f.len() < 17 {
+        if f.len() < QUERY_FIELDS {
             continue;
         }
-        let Some(pane) = parse_pane(&f[8..17]) else {
+        let Some(pane) = parse_pane(&f[8..QUERY_FIELDS]) else {
             continue;
         };
         let wid = f[2].to_string();
@@ -107,7 +109,12 @@ pub fn query_all() -> io::Result<Vec<Win>> {
             a.index.parse::<i64>().unwrap_or(0).cmp(&b.index.parse::<i64>().unwrap_or(0))
         })
     });
-    Ok(wins)
+    wins
+}
+
+/// Every window on the host, each with its panes.
+pub fn query_all() -> io::Result<Vec<Win>> {
+    Ok(parse_query(&out(&["list-panes", "-a", "-F", QUERY_FORMAT])?))
 }
 
 /// Visible pane text plus a short scrollback tail. This is a snapshot, not a
@@ -117,7 +124,6 @@ pub fn capture_pane(id: &str) -> io::Result<String> {
 }
 
 /// Strip CSI/OSC so a TUI snapshot is readable as plain text.
-#[allow(dead_code)]
 pub fn strip_ansi(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
@@ -183,6 +189,35 @@ mod tests {
 
     #[test]
     fn query_parser_preserves_all_fields_after_title_extension() {
+        // The rows below are hand-built at the positions the parser reads, so
+        // bind those positions to the format string tmux is actually given.
+        // Without this the two halves drift apart with every test still green.
+        assert_eq!(
+            super::QUERY_FORMAT.split('\t').collect::<Vec<_>>(),
+            [
+                "#{session_name}",
+                "#{session_attached}",
+                "#{window_id}",
+                "#{window_index}",
+                "#{window_name}",
+                "#{window_active}",
+                "#{window_width}",
+                "#{window_height}",
+                "#{pane_id}",
+                "#{pane_index}",
+                "#{pane_left}",
+                "#{pane_top}",
+                "#{pane_width}",
+                "#{pane_height}",
+                "#{pane_active}",
+                "#{pane_current_command}",
+                "#{pane_current_path}",
+                "#{pane_title}",
+            ],
+            "the title must be requested last, after every pre-existing field"
+        );
+        assert_eq!(super::QUERY_FORMAT.split('\t').count(), super::QUERY_FIELDS);
+
         let raw = format!(
             "{}\n{}\n",
             row(
@@ -191,7 +226,18 @@ mod tests {
             ),
             row(
                 &WIN,
-                &["%12", "1", "90", "0", "90", "48", "0", "claude", "/code/factory-tui", "auditor-1"]
+                &[
+                    "%12",
+                    "1",
+                    "90",
+                    "0",
+                    "90",
+                    "48",
+                    "0",
+                    "claude",
+                    "/code/factory-tui",
+                    "auditor-1"
+                ]
             ),
         );
 
@@ -235,7 +281,8 @@ mod tests {
         assert!(parse_query(&short).is_empty(), "a titleless row carries no pane");
 
         // One malformed row must not take the rest of the census with it.
-        let good = row(&WIN, &["%12", "1", "90", "0", "90", "48", "0", "bash", "/tmp", "auditor-1"]);
+        let good =
+            row(&WIN, &["%12", "1", "90", "0", "90", "48", "0", "bash", "/tmp", "auditor-1"]);
         let wins = parse_query(&format!("{short}\n{good}\n"));
         assert_eq!(wins.len(), 1);
         assert_eq!(wins[0].panes.len(), 1);
