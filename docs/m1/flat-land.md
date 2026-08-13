@@ -1,5 +1,9 @@
 # Flat terminal land
 
+!!! warning "Unvalidated experiment"
+    This page is research, not operating advice. Today's binary is a
+    browser over ordinary tmux windows. See [Using](../using.md).
+
 **Milestone 1 outcome:** the factory is a tree of **seats**. A seat is
 one visible agent process. On today's host a seat is one tmux
 **window**. Sessions and panes are not rungs of that tree.

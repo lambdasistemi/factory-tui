@@ -1,5 +1,9 @@
 # User-controlled compositor
 
+!!! warning "Unvalidated experiment"
+    This page is research, not operating advice. Today's binary is a
+    browser over ordinary tmux windows. See [Using](../using.md).
+
 **Milestone 1 outcome:** the operator owns **views**. A view is a
 named camera over seats. The app decides the recipe (one desk, a
 ticket workshop, a crew row). The multiplexer does not.

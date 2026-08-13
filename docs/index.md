@@ -1,43 +1,51 @@
 # factory-tui
 
-The operator's index over a factory of visible agent seats.
+A popup browser over the tmux windows on this host.
 
-The factory is a tree of work. Terminal multiplexers only have sessions,
-windows, and panes. This program is the map that makes the first tree
-walkable, and the compositor that can look at several seats at once
-without turning them back into splits.
+It does not replace tmux and it does not create windows. You keep
+using sessions and windows as usual. factory-tui reads their names,
+draws a tree, shows a coloured snapshot of the selected window, and
+jumps the attached client there.
 
-## Milestone 1 — Flat terminal land
-
-M1 records the research that decides the product:
-
-- [Flat terminal land](m1/flat-land.md) — seats are windows; sessions and
-  panes are not factory structure.
-- [User-controlled compositor](m1/compositor.md) — views are cameras;
-  observers do not resize; attach is one seat, full glass.
-- [Decisions](m1/decisions.md) — the rejected alternatives and why.
-
-The standing prototype in this repository is a browse camera: a tree on
-the left, a coloured snapshot of one seat on the right, Enter to jump.
-
-## Install
-
-Tagged releases ship Linux AppImage / DEB / RPM / static-musl tarballs
-and a Homebrew formula on Apple Silicon:
-
-```
-brew tap lambdasistemi/tap
-brew install factory-tui
+```text
+machine
+infra
+project
+  M1 ship
+    desk
+    e12 parser
+      t34 rename
 ```
 
-https://github.com/lambdasistemi/factory-tui/releases/latest
+That tree is decoded from **window names** (and, when the window name
+is incomplete, from the **session name**). A window that does not
+match the grammar still appears, under *unscoped*. Nothing is hidden.
 
-From source: `nix build github:lambdasistemi/factory-tui`.
+[Install](install.md) · [Lay out tmux](using.md)
 
-## Run
+## Today
 
-Inside tmux: `F1` or `prefix + S` opens the browser (local bind).
+- One row in the tree is one tmux **window**. Panes stay inside that
+  window; they are not extra rungs.
+- The right-hand pane is a snapshot (`capture-pane`). Opening the
+  browser does not resize live windows.
+- `Enter` or a double-click jumps to the selected window and closes
+  the popup.
+- Status is a guess from the window name (`PARKED`) and from the
+  process in a pane (`claude`, `codex`, a shell, …).
 
+Bind it as a tmux popup, then open it from any session:
+
+```tmux
+bind-key -n F1 display-popup -E -w 90% -h 90% factory-tui
+bind-key S     display-popup -E -w 90% -h 90% factory-tui
 ```
-nix develop -c just build
-```
+
+`factory-tui --dump` prints the same tree with no UI.
+
+## Not yet decided
+
+The pages under *Research* sketch a flatter world where sessions and
+panes stop mattering. That is an **unvalidated experiment**. Do not
+treat it as the product. Today's useful setup is ordinary tmux plus
+the naming rules in [Using](using.md).

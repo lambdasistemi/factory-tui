@@ -1,5 +1,10 @@
 # M1 decisions
 
+!!! warning "Unvalidated experiment"
+    These decisions are a research stake, not a validated product.
+    Today's binary is a browser over ordinary tmux windows. See
+    [Using](../using.md).
+
 Recorded so a later change has to contradict them on purpose.
 
 ## Accepted

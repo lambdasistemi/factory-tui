@@ -1,5 +1,9 @@
 # M1 — Flat terminal land with a user-controlled compositor
 
+!!! warning "Unvalidated experiment"
+    This page is research, not operating advice. Today's binary is a
+    browser over ordinary tmux windows. See [Using](../using.md).
+
 **Outcome.** The factory is a tree of seats. A seat is one visible
 agent process (today: one tmux window). This program is the index and
 the compositor. Sessions and panes are not factory structure. Views

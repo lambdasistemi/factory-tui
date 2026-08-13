@@ -1,0 +1,16 @@
+{
+  "factory-tui": [
+    {"text": "factory-tui is a popup browser over the tmux windows on this host.", "pause": 400},
+    {"text": "It does not replace tmux and it does not create windows.", "pause": 300},
+    {"text": "You keep sessions and windows. The app reads their names, draws a tree, shows a snapshot, and jumps there.", "pause": 400}
+  ],
+  "today": [
+    {"text": "One row is one tmux window. Panes stay inside that window.", "pause": 300},
+    {"text": "The right-hand view is a snapshot. Opening the browser does not resize live windows.", "pause": 300},
+    {"text": "Enter or a double-click jumps to the selected window.", "pause": 400}
+  ],
+  "not-yet-decided": [
+    {"text": "The research pages sketch a flatter world. That experiment is not validated.", "pause": 300},
+    {"text": "Today, use ordinary tmux plus the naming rules on the Using page.", "pause": 400}
+  ]
+}

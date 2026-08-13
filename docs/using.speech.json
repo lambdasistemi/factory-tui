@@ -1,0 +1,24 @@
+{
+  "using-factory-tui": [
+    {"text": "factory-tui is only as clear as your tmux names.", "pause": 400},
+    {"text": "The layout on this page is what the current binary understands, not a final factory design.", "pause": 400}
+  ],
+  "bind-and-keys": [
+    {"text": "Bind it as a tmux popup. F1 or prefix S opens it.", "pause": 300},
+    {"text": "j and k move, Enter jumps, q quits, r refreshes.", "pause": 400}
+  ],
+  "what-to-put-where": [
+    {"text": "Sessions are bags of related work. Windows are the seats you want to find.", "pause": 400},
+    {"text": "Zero-machine and zero-projects are infrastructure. Product work lives in a product session.", "pause": 400},
+    {"text": "Name the window. Panes inside it do not become extra tree rows.", "pause": 400}
+  ],
+  "window-names-the-parser-understands": [
+    {"text": "Unknown names stay visible under unscoped. Nothing is dropped.", "pause": 300},
+    {"text": "Milestone desks use m s, then a number, then a goal. Epics use e, tickets use t.", "pause": 400},
+    {"text": "The word parked anywhere in the name marks the seat parked.", "pause": 400}
+  ],
+  "habits-that-make-the-browser-useful": [
+    {"text": "Rename as soon as the lane has an id and a goal.", "pause": 300},
+    {"text": "Keep one window per lane. Park by renaming, not by hoping the process list looks quiet.", "pause": 400}
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "install": [
+    {"text": "On Apple Silicon, tap lambdasistemi and brew install factory-tui.", "pause": 400},
+    {"text": "On Linux, grab an AppImage, deb, rpm, or musl tarball from the GitHub releases page.", "pause": 400},
+    {"text": "From source, nix build the cli package. Do not bind a cargo target release binary.", "pause": 400}
+  ]
+}

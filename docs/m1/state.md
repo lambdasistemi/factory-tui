@@ -2,34 +2,26 @@
 
 Updated: 2026-08-13
 
-Legend: done · active/next · queued · blocked · unknown
+This milestone is an **unvalidated experiment**. The shipped program
+is a browse camera over live tmux windows. Operator docs:
+
+https://lambdasistemi.github.io/factory-tui/using/
 
 ## Picture
 
 ```text
-Record
-  ✅ constitution
-  ✅ flat-land / compositor / decisions
-  🟡 GitHub milestone #1 + issue #1 + PR
-  ✅ wiki M1-State
-  ⏳ Pages deploy of docs/ on main
+Shipped
+  ✅ browse camera (tree + snapshot + jump)
+  ✅ nix package and just ci
+  ✅ v0.0.1 Linux / Darwin artifacts
 
-Prototype (browse camera)
-  ✅ tree of seats from live window names
-  ✅ coloured snapshot observer (does not resize)
-  ✅ Enter / double-click jump
-  🟡 Nix-rooted `.#cli` + crane checks on this PR
-  ⏳ standing --serve embed (not M1)
-
-Release
-  🟡 release-please rust + Linux/Darwin artifact workflows on this PR
-  ⏳ first `v*` tag after merge (no GitHub release yet)
-
-Next after M1
-  ⏳ home session + --serve for tablet attach
+Research (not product law)
+  🟡 flat-land / compositor / decisions
+  ⏳ validate or drop the "sessions are not structure" thesis
+  ⏳ standing --serve embed
 ```
 
 ## Blockers
 
-None for publishing the record. The first installable GitHub release
-waits on this PR merging and a later `v*` tag.
+None for using the current browser. Validation of the M1 thesis is
+open.
