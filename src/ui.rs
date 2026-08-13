@@ -215,12 +215,8 @@ fn row_style(kind: Kind, status: Status, selected: bool) -> Style {
     // Dark ANSI accents only — White/Cyan/Yellow/Gray vanish on a light
     // terminal background.
     let mut s = match kind {
-        Kind::Machine | Kind::Project | Kind::Milestone => {
-            Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
-        }
-        Kind::Desk => Style::default().fg(Color::Blue),
-        Kind::Epic => Style::default().fg(Color::Magenta),
-        Kind::Ticket | Kind::Window | Kind::Group | Kind::Infra => Style::default(),
+        Kind::SessionGroup => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+        Kind::Window => Style::default(),
     };
     if status == Status::Parked {
         s = s.fg(Color::Red);

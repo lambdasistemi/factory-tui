@@ -6,38 +6,38 @@ functions-model.md
 
 ## Slice S5.1 — raw-tmux-tree (single OWNER slice)
 
-- [ ] T5-001 RED (golden): with no config file and no
+- [x] T5-001 RED (golden): with no config file and no
       `$FACTORY_TUI_CONFIG`, `tree::build(fake_census,
       &Config::empty())` dumps a session → window text tree; every
       window sits under its own session. (I5-DEFAULT-TREE)
-- [ ] T5-002 RED (unit): `config::load()` respects
+- [x] T5-002 RED (unit): `config::load()` respects
       `$FACTORY_TUI_CONFIG` first, then XDG default, then falls back
       to `Config::empty()` on missing file. (I5-CONFIG-PATH)
-- [ ] T5-003 RED (unit): `config::load_from_str` deserializes a
+- [x] T5-003 RED (unit): `config::load_from_str` deserializes a
       config with an unknown top-level table (`[fabricated]`) into
       the current-schema `Config` without error. (I5-CONFIG-FORWARD)
-- [ ] T5-004 RED (golden): with a config declaring one alias and one
+- [x] T5-004 RED (golden): with a config declaring one alias and one
       infra pattern, `tree::build` renames the aliased session in the
       dumped tree and tags the infra session. (I5-TABLES-APPLIED)
-- [ ] T5-005 RED (gate integration): the frozen `./gate.sh` step
+- [x] T5-005 RED (gate integration): the frozen `./gate.sh` step
       that greps `src/` for the retired host identifiers is red on
       the branch base and green on the accepted candidate.
       (I5-NO-HOSTNAMES)
-- [ ] T5-006 GREEN: implement `src/config.rs` per
+- [x] T5-006 GREEN: implement `src/config.rs` per
       `functions-model.md`; add `toml` + `serde` deps.
-- [ ] T5-007 GREEN: implement the default and table-aware paths in
+- [x] T5-007 GREEN: implement the default and table-aware paths in
       `src/tree.rs::build` per `data-model.md`; wire `--dump` in
       `src/main.rs` to `config::load()`.
-- [ ] T5-008 GREEN: remove every host identifier from `src/` per
+- [x] T5-008 GREEN: remove every host identifier from `src/` per
       I5-NO-HOSTNAMES; do not rely on `src/parse.rs` for the default
       tree (retire fully on #6).
-- [ ] T5-009 GREEN: amend `.specify/memory/constitution.md`:
+- [x] T5-009 GREEN: amend `.specify/memory/constitution.md`:
       shipped default is sessions and windows; projection is
       optional and data-only; host names live in a local file.
       (I5-RECORD-MATCH)
-- [ ] T5-010 GREEN: amend README first paragraph so the default
+- [x] T5-010 GREEN: amend README first paragraph so the default
       sentence matches the shipped default. (I5-RECORD-MATCH)
-- [ ] T5-011 GREEN: `nix run .#ci` and `./gate.sh` pass on the final
+- [x] T5-011 GREEN: `nix run .#ci` and `./gate.sh` pass on the final
       accepted commit tree from a clean detached worktree.
       (I5-GATE-GREEN)
 

@@ -22,6 +22,10 @@ is written in user-visible terms (a tree a person can walk, a view they
 can name, a seat they can enter) before any code. A green binary with a
 stale document is a failed change.
 
+The shipped default tree is tmux sessions and windows. Projection is
+optional and data-only; host aliases live in the operator's local
+configuration file, never in the crate.
+
 ### 2.2 WHAT is not WHERE
 
 Factory authority (who owns what work) and placement (which process

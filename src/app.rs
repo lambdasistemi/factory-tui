@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
 
+use crate::config::Config;
 use crate::geometry::{contains, hit, rects_for};
 use crate::peek;
 use crate::tmux::{self, Win};
@@ -26,6 +27,7 @@ pub struct Row {
 }
 
 pub struct App {
+    config: Config,
     pub root: Node,
     pub expanded: HashSet<String>,
     pub selected: usize,
@@ -53,12 +55,13 @@ enum ClickTarget {
 }
 
 impl App {
-    pub fn new() -> io::Result<Self> {
+    pub fn new(config: Config) -> io::Result<Self> {
         let wins = tmux::query_all()?;
-        let root = tree::build(wins);
+        let root = tree::build(wins, &config);
         let mut expanded = HashSet::new();
         expand_defaults(&root, &mut expanded);
         let mut app = Self {
+            config,
             root,
             expanded,
             selected: 0,
@@ -78,14 +81,14 @@ impl App {
             last_click: None,
         };
         app.rebuild_rows();
-        app.select_first_desk();
+        app.select_first_window();
         app.refresh_peek();
         Ok(app)
     }
 
     pub fn refresh(&mut self) -> io::Result<()> {
         let keep = self.current().map(|r| r.id.clone());
-        self.root = tree::build(tmux::query_all()?);
+        self.root = tree::build(tmux::query_all()?, &self.config);
         expand_defaults(&self.root, &mut self.expanded);
         self.rebuild_rows();
         if let Some(id) = keep {
@@ -115,10 +118,8 @@ impl App {
         }
     }
 
-    fn select_first_desk(&mut self) {
-        if let Some(i) = self.rows.iter().position(|r| r.kind == Kind::Desk) {
-            self.selected = i;
-        } else if let Some(i) = self.rows.iter().position(|r| r.kind == Kind::Milestone) {
+    fn select_first_window(&mut self) {
+        if let Some(i) = self.rows.iter().position(|r| r.kind == Kind::Window) {
             self.selected = i;
         }
     }
@@ -362,10 +363,7 @@ impl App {
 }
 
 fn expand_defaults(node: &Node, set: &mut HashSet<String>) {
-    if matches!(
-        node.kind,
-        Kind::Group | Kind::Machine | Kind::Infra | Kind::Project | Kind::Milestone | Kind::Epic
-    ) {
+    if node.kind == Kind::SessionGroup {
         set.insert(node.id.clone());
     }
     for c in &node.children {
