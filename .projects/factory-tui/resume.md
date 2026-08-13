@@ -13,6 +13,12 @@ Do not implement from this desk.
 
 M3 no-bugs — https://github.com/lambdasistemi/factory-tui/milestone/3
 
+## Host condition in force
+
+GitHub unauthenticated API exhausted on this host (2026-08-13). Use
+`git+https:` not `github:` until the operator rebuilds Nix tokens.
+Cascaded to M3: `/tmp/ms-3/inbox/NOTE-github-api-exhausted.md`.
+
 ## Do not
 
 - Reopen M1
