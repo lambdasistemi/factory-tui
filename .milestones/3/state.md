@@ -40,6 +40,8 @@ flowchart TD
 | #19 T-B — milestone tag line | 🟡 active | blocked once on an unsafe publisher; unblocked by A-003 — a non-`v*` tag that triggers no workflow. Baseline green |
 | milestone artifact | ⛔ blocked | nothing a stranger can install yet; blocks the outcome audit — not the fixes. Unblocked by T-B |
 | outcome audit | ⏳ queued | runs against the published artifact, never a source build |
+| T-D — pane titles | 🟡 active | operator-reported: boxes read `N:claude`; `#{pane_title}` is never queried. Lane requested |
+| T-C — window composite preview | ⏳ queued | operator-reported: preview is pane-scoped, but the window is the jump target. Design settled; sequenced after T-D |
 | M1 | ❓ unknown | unvalidated experiment; deliberately untouched by M3 |
 
 ## The defect this milestone is named for

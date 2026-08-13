@@ -45,6 +45,8 @@ separately authorized act (D-2026-08-13-m3-no-bugs).
 |---|---|---|---|---|
 | E-A (#15) | epic | Status is sampled, not assumed: samplers replace pane occupancy; published schema, example, census and default recipes move with it; agent-agnosticism gets an enforcing check | DISPATCHED — brief `/tmp/ms-3/e-a/brief.md` sha256 `c6fc721310faddea` (amended post-build with the host disk-lock constraint; the machine owner's build-time verification of `03039c79220307e7` predates that amendment); **LIVE** pane `%6422` (@4478), codex-raw/gpt-5.6-sol/high; acknowledged (tag format corrected by NOTE-001) | `factory-tui-ms3-e-unknown-status-samplers` |
 | T-B (#19) | ticket | A clearly-marked milestone pre-release line a stranger can install, which cannot displace the product line | DISPATCHED — brief `/tmp/ms-3/t-b/brief.md` sha256 `c1ed3c92081ac9ca`; **LIVE** pane `%6423` (@4479), codex-raw/gpt-5.6-sol/high; `START` received; first tag push gated on Q-002 | `factory-tui-ms3-t-unknown-prerelease-line` |
+| T-D | ticket | Pane boxes carry the real tmux pane title, so a reader can tell which seat is which | DISPATCHED — brief written; lane requested | `factory-tui-ms3-t-unknown-pane-titles` (requested) |
+| T-C | ticket | Preview a WINDOW as a composite quadrant, each pane filled with its own content; zoom-on-demand; hybrid refresh | QUEUED — design settled, sequenced after T-D (same `ui.rs` region) | not yet requested |
 
 Both children filed their own issues, as their contracts required — this
 desk filed nothing.
@@ -118,9 +120,35 @@ the rest by direct source reading at `main`.
   narrower than the operator premise. (C6)
 - **D9 — no installable milestone artifact.** See C7 and T-B. (C7)
 
+- **D10 — the preview previews the wrong thing.** `ui.rs` `draw_right`
+  renders a schematic of empty bordered boxes (height capped at 5 rows)
+  plus a separate text block, and `app.rs refresh_preview` captures one
+  pane only. So a multi-pane window shows empty boxes and one filled
+  block. This is the design, not a rendering fault: the preview is
+  pane-scoped while the jump target is the window. Operator-reported and
+  confirmed by reading the source. Fix: window composite quadrant. (T-C,
+  see `preview-decisions.md`)
+- **D11 — pane identity is illegible.** `#{pane_title}` is never queried
+  (zero occurrences in the crate); boxes are titled `{index}:{cmd}`, so
+  every claude seat reads `N:claude`. tmux already holds good titles.
+  Operator-reported. (T-D)
+
 Explicitly **not** M3 work: M1 validation and the M1 research pages
 (D-2026-08-13-m1-unvalidated); tagging, packaging or announcing the
 product release.
+
+## Preview model
+
+Operator-reported defects D10/D11 and the decisions that settle them are
+in `preview-decisions.md` beside this file. Headline: **the preview
+subject is the window, not a pane** — a window renders as a composite
+quadrant with every pane filled from its own capture; Tab/click zooms one
+pane for scrollback; `r` and window-selection recapture every pane while
+the timer refreshes only the focused one.
+
+Scope note: this is new behavior beyond the brief's "only to stop a lie"
+limit. It proceeds on direct operator intent and the scope record is
+routed to the project owner. Not blocked on that routing.
 
 ## Parked decisions
 
