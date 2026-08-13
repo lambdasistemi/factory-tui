@@ -1,22 +1,17 @@
 # factory-tui
 
-With no config, `factory-tui` shows every window under its tmux
-session; an optional file at `$FACTORY_TUI_CONFIG` (or
-`~/.config/factory-tui/config.toml`) may project that tree.
+A popup browser over the tmux windows on this host. With no config it
+shows session → window. Enter jumps. The snapshot does not resize
+the live window.
 
-A seat is one visible agent. On this host that is one tmux window. The
-app is the index and the compositor: tree on the left, a coloured
-snapshot of the selected seat on the right, Enter to jump.
+Optional projection lives in a file, not in the crate:
 
-The optional `[sessions]` table accepts `alias`, `machine`, and
-`infra` entries; infrastructure patterns use whole-name `*` and `?`
-globs. The `[status]` table accepts `running`, `idle`, and
-`parked_substring` rules over pane commands.
+- `$FACTORY_TUI_CONFIG`
+- else `~/.config/factory-tui/config.toml`
 
-Milestone 1 records why the land is flat and why views must not resize
-agents:
+A missing file is not an error. Generic example:
 
-https://lambdasistemi.github.io/factory-tui/
+https://github.com/lambdasistemi/factory-tui/blob/main/examples/projection.toml
 
 ## Install
 
@@ -29,42 +24,26 @@ brew install factory-tui
 
 ### Linux
 
-Grab a single-file artifact from
-
 https://github.com/lambdasistemi/factory-tui/releases/latest
-
-(AppImage / DEB / RPM / static-musl tarball, x86_64 and aarch64). Asset
-names carry the version, e.g. for v0.0.1 on x86_64:
-
-```
-curl -L https://github.com/lambdasistemi/factory-tui/releases/download/v0.0.1/factory-tui-0.0.1-x86_64-linux.AppImage -o factory-tui
-chmod +x ./factory-tui
-```
 
 ### From source (Nix)
 
 ```
 nix build github:lambdasistemi/factory-tui
-# or, from a clone:
-nix build .#cli          # GC-rooted binary in ./result/bin/factory-tui
-just ci                  # = nix flake check = CI
-nix develop -c cargo test
+nix build .#cli
+just ci
 ```
+
+Do not bind `target/release`.
 
 ## Run
 
-Launch from a tmux popup. Bind it in your tmux config:
-
 ```tmux
-# prefix + F1, or prefix + S
-bind-key F1 display-popup -E -w 90% -h 90% factory-tui
-bind-key S  display-popup -E -w 90% -h 90% factory-tui
+bind-key -n F1 display-popup -E -w 90% -h 90% factory-tui
+bind-key S     display-popup -E -w 90% -h 90% factory-tui
 ```
 
-`--dump` prints the live tree with no UI (must run inside tmux).
-
-`target/release` from a dev shell is not a release: a store GC can
-delete its glibc. Use `nix build .#cli`.
+`factory-tui --dump` prints the tree with no UI.
 
 ## License
 

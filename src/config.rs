@@ -9,6 +9,7 @@ use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
+use regex::Regex;
 use serde::Deserialize;
 
 const CONFIG_ENV: &str = "FACTORY_TUI_CONFIG";
@@ -21,12 +22,64 @@ pub struct Config {
     pub sessions: SessionsConfig,
     /// Pane-command rules used to classify window status.
     pub status: StatusConfig,
+    /// Ordered window classifiers. First match wins.
+    pub rule: Vec<Rule>,
+    /// How classified windows are folded into folders.
+    pub tree: TreeConfig,
+}
+
+/// One `[[rule]]` table: a window regex plus optional session regex and role.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(default)]
+pub struct Rule {
+    /// Regex matched against the tmux window name. Named captures become fields.
+    pub window: String,
+    /// Optional regex matched against the tmux session name.
+    pub session: Option<String>,
+    /// Role assigned when this rule matches (`desk`, `ticket`, …).
+    pub role: Option<String>,
+}
+
+/// The `[tree]` table.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[serde(default)]
+pub struct TreeConfig {
+    /// Ordered field names used as folder levels (`project`, `milestone`, `epic`).
+    pub folders: Vec<String>,
+    /// Roles whose window is the jump target of its folder.
+    pub desk_roles: Vec<String>,
+    /// Copy a desk's milestone onto other windows in the same session.
+    pub inherit_milestone_from_desk: bool,
+}
+
+/// Fields decoded from the first matching rule.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Classified {
+    /// Rule or capture `role`.
+    pub role: Option<String>,
+    /// Capture `project`, else session alias / session name.
+    pub project: Option<String>,
+    /// Capture `milestone`.
+    pub milestone: Option<String>,
+    /// Capture `epic`.
+    pub epic: Option<String>,
+    /// Capture `ticket`.
+    pub ticket: Option<String>,
+    /// Capture `goal`.
+    pub goal: Option<String>,
+    /// Window name contains the parked substring.
+    pub parked: bool,
 }
 
 impl Config {
     /// Return a configuration whose tables have no effect on the tmux census.
     pub fn empty() -> Self {
         Self::default()
+    }
+
+    /// Whether this file asks for a folded tree.
+    pub fn projects(&self) -> bool {
+        !self.rule.is_empty() && !self.tree.folders.is_empty()
     }
 
     /// Return the display alias for `session`, when one is configured.
@@ -147,11 +200,94 @@ pub fn load_from_path(path: &Path) -> Result<Config, ConfigError> {
 
 /// Parse TOML configuration from an in-memory string.
 pub fn load_from_str(text: &str) -> Result<Config, ConfigError> {
-    toml::from_str(text).map_err(|source: toml::de::Error| ConfigError::Toml {
-        path: None,
-        span: source.span(),
-        message: source.message().to_string(),
-    })
+    let config: Config = toml::from_str(text).map_err(|source: toml::de::Error| {
+        ConfigError::Toml { path: None, span: source.span(), message: source.message().to_string() }
+    })?;
+    validate_rules(&config)?;
+    Ok(config)
+}
+
+fn validate_rules(config: &Config) -> Result<(), ConfigError> {
+    for (index, rule) in config.rule.iter().enumerate() {
+        if rule.window.is_empty() {
+            return Err(ConfigError::Toml {
+                path: None,
+                span: None,
+                message: format!("rule {index} is missing window"),
+            });
+        }
+        Regex::new(&rule.window).map_err(|error| ConfigError::Toml {
+            path: None,
+            span: None,
+            message: format!("rule {index} window: {error}"),
+        })?;
+        if let Some(session) = &rule.session {
+            Regex::new(session).map_err(|error| ConfigError::Toml {
+                path: None,
+                span: None,
+                message: format!("rule {index} session: {error}"),
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// Classify `win` with the first matching rule. `None` means unmatched.
+pub fn classify(win: &crate::tmux::Win, config: &Config) -> Option<Classified> {
+    for rule in &config.rule {
+        if let Some(session) = &rule.session {
+            let Ok(regex) = Regex::new(session) else {
+                continue;
+            };
+            if !regex.is_match(&win.session) {
+                continue;
+            }
+        }
+        let Ok(regex) = Regex::new(&rule.window) else {
+            continue;
+        };
+        let Some(captures) = regex.captures(&win.name) else {
+            continue;
+        };
+        let mut classified = Classified {
+            role: named(&captures, "role").or_else(|| rule.role.clone()),
+            project: named(&captures, "project"),
+            milestone: named(&captures, "milestone"),
+            epic: named(&captures, "epic"),
+            ticket: named(&captures, "ticket"),
+            goal: named(&captures, "goal"),
+            parked: parked_name(&win.name, config),
+        };
+        if classified.project.is_none() {
+            classified.project = config
+                .session_alias(&win.session)
+                .map(str::to_string)
+                .or_else(|| Some(win.session.clone()));
+        }
+        if classified.milestone.is_none() {
+            classified.milestone = milestone_from_session(&win.session);
+        }
+        return Some(classified);
+    }
+    None
+}
+
+fn named(captures: &regex::Captures<'_>, name: &str) -> Option<String> {
+    captures.name(name).map(|value| value.as_str().to_string()).filter(|value| !value.is_empty())
+}
+
+fn parked_name(name: &str, config: &Config) -> bool {
+    !config.status.parked_substring.is_empty() && name.contains(&config.status.parked_substring)
+}
+
+fn milestone_from_session(session: &str) -> Option<String> {
+    let rest = session.split("-ms").nth(1)?;
+    let digits: String = rest.chars().take_while(|character| character.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        None
+    } else {
+        Some(digits)
+    }
 }
 
 fn selected_path() -> Option<PathBuf> {

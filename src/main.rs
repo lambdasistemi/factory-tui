@@ -1,6 +1,6 @@
-//! factory-tui — a raw tree browser over live tmux.
+//! factory-tui — a tree browser over live tmux.
 //!
-//! Left: session → window.
+//! Default: session → window. An optional config file may fold names.
 //! Right: a text snapshot of the selected pane (`tmux capture-pane`).
 //! Enter jumps the attached client there and exits.
 //!

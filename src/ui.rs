@@ -215,7 +215,9 @@ fn row_style(kind: Kind, status: Status, selected: bool) -> Style {
     // Dark ANSI accents only — White/Cyan/Yellow/Gray vanish on a light
     // terminal background.
     let mut s = match kind {
-        Kind::SessionGroup => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
+        Kind::SessionGroup | Kind::Folder => {
+            Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
+        }
         Kind::Window => Style::default(),
     };
     if status == Status::Parked {

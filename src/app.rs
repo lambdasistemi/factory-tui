@@ -363,7 +363,7 @@ impl App {
 }
 
 fn expand_defaults(node: &Node, set: &mut HashSet<String>) {
-    if node.kind == Kind::SessionGroup {
+    if node.kind == Kind::SessionGroup || node.kind == Kind::Folder {
         set.insert(node.id.clone());
     }
     for c in &node.children {

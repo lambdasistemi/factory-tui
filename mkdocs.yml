@@ -49,7 +49,9 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Milestone 1:
+  - Using: using.md
+  - Install: install.md
+  - Research (unvalidated):
       - Flat terminal land: m1/flat-land.md
       - User-controlled compositor: m1/compositor.md
       - Decisions: m1/decisions.md
