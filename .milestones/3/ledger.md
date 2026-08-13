@@ -43,11 +43,22 @@ separately authorized act (D-2026-08-13-m3-no-bugs).
 
 | Id | Kind | Outcome | State | Lane |
 |---|---|---|---|---|
-| E-A | epic | Status is sampled, not assumed: samplers replace pane occupancy; published schema, example, census and default recipes move with it; agent-agnosticism gets an enforcing check | DISPATCHED — brief `/tmp/ms-3/e-a/brief.md` sha256 `c6fc721310faddea` (amended post-build with the host disk-lock constraint; the machine owner's build-time verification of `03039c79220307e7` predates that amendment); **LIVE** pane `%6422` (@4478), codex-raw/gpt-5.6-sol/high; acknowledged (tag format corrected by NOTE-001) | `factory-tui-ms3-e-unknown-status-samplers` |
-| T-B | ticket | A clearly-marked milestone pre-release line a stranger can install, which cannot displace the product line | DISPATCHED — brief `/tmp/ms-3/t-b/brief.md` sha256 `c1ed3c92081ac9ca`; **LIVE** pane `%6423` (@4479), codex-raw/gpt-5.6-sol/high; `START` received; first tag push gated on Q-002 | `factory-tui-ms3-t-unknown-prerelease-line` |
+| E-A (#15) | epic | Status is sampled, not assumed: samplers replace pane occupancy; published schema, example, census and default recipes move with it; agent-agnosticism gets an enforcing check | DISPATCHED — brief `/tmp/ms-3/e-a/brief.md` sha256 `c6fc721310faddea` (amended post-build with the host disk-lock constraint; the machine owner's build-time verification of `03039c79220307e7` predates that amendment); **LIVE** pane `%6422` (@4478), codex-raw/gpt-5.6-sol/high; acknowledged (tag format corrected by NOTE-001) | `factory-tui-ms3-e-unknown-status-samplers` |
+| T-B (#19) | ticket | A clearly-marked milestone pre-release line a stranger can install, which cannot displace the product line | DISPATCHED — brief `/tmp/ms-3/t-b/brief.md` sha256 `c1ed3c92081ac9ca`; **LIVE** pane `%6423` (@4479), codex-raw/gpt-5.6-sol/high; `START` received; first tag push gated on Q-002 | `factory-tui-ms3-t-unknown-prerelease-line` |
 
-Neither issue is filed yet: filing is each child's first act under its
-contract (this desk does not file what a child can file).
+Both children filed their own issues, as their contracts required — this
+desk filed nothing.
+
+- **#15** epic "Make work-in-progress status evidence-based and
+  agent-agnostic", cut into ordered children by its owner:
+  **#16** report RUNNING only from named evidence samplers (ready) ->
+  **#17** census-driven status sampler recipes (blocked on 16) ->
+  **#18** enforce agent-agnostic shipped artifacts in Nix and CI (blocked
+  on 16, 17). Merge order 16, 17, 18. Baseline `just ci` green at
+  `8a273de`; worktree `/code/factory-tui-epic-15`.
+- **#19** "ci: publish an installable M3 preview tag without touching the
+  product release line"; worktree `/code/factory-tui-issue-19`, branch
+  `ci/19-m3-preview-tag`, baseline green.
 
 ## Priority order
 

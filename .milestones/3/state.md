@@ -11,11 +11,11 @@ Order only — no bar widths, because none of this work is estimated.
 ```mermaid
 flowchart TD
   M2["✅ M2 — tmux browser + projection (v0.1.0)"]
-  EA["🟡 E-A — status is sampled, not assumed (live)"]
-  EA1["⏳ crate: named samplers, field + regex → status"]
-  EA2["⏳ skill: census emits sampler fields + default recipes"]
-  EA3["⏳ CI: agent-agnosticism gets an enforcing check"]
-  TB["🟡 T-B — milestone tag line (live; non-v tag, no release object)"]
+  EA["🟡 #15 E-A — status is sampled, not assumed"]
+  EA1["🟡 #16 crate: named evidence samplers"]
+  EA2["⏳ #17 census-driven sampler recipes"]
+  EA3["⏳ #18 CI enforces agent-agnosticism"]
+  TB["🟡 #19 milestone tag line (non-v tag, no release object)"]
   ART["⛔ installable milestone artifact"]
   AUD["⏳ outcome audit — against the published artifact"]
   ACC["⏳ M3 acceptance → release becomes satisfiable"]
@@ -36,8 +36,8 @@ flowchart TD
 
 | Unit | State | Note |
 |---|---|---|
-| E-A — status samplers | 🟡 active | **live** in pane `%6422`; the epic owner files its own issue and ordered children |
-| T-B — milestone tag line | 🟡 active | **live** in pane `%6423`. Blocked once on an unsafe publisher; unblocked by A-003 — the artifact is a non-`v*` tag that triggers no workflow |
+| #15 E-A — status samplers | 🟡 active | epic filed and cut into #16 -> #17 -> #18 in that merge order; baseline `just ci` green |
+| #19 T-B — milestone tag line | 🟡 active | blocked once on an unsafe publisher; unblocked by A-003 — a non-`v*` tag that triggers no workflow. Baseline green |
 | milestone artifact | ⛔ blocked | nothing a stranger can install yet; blocks the outcome audit — not the fixes. Unblocked by T-B |
 | outcome audit | ⏳ queued | runs against the published artifact, never a source build |
 | M1 | ❓ unknown | unvalidated experiment; deliberately untouched by M3 |
