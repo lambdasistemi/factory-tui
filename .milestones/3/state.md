@@ -11,11 +11,11 @@ Order only — no bar widths, because none of this work is estimated.
 ```mermaid
 flowchart TD
   M2["✅ M2 — tmux browser + projection (v0.1.0)"]
-  EA["🟡 E-A — status is sampled, not assumed"]
+  EA["🟡 E-A — status is sampled, not assumed (live)"]
   EA1["⏳ crate: named samplers, field + regex → status"]
   EA2["⏳ skill: census emits sampler fields + default recipes"]
   EA3["⏳ CI: agent-agnosticism gets an enforcing check"]
-  TB["⛔ T-B — milestone pre-release line (pipeline rejects it)"]
+  TB["🟡 T-B — milestone pre-release line (live; pipeline rejects the tag)"]
   ART["⛔ installable milestone artifact"]
   AUD["⏳ outcome audit — against the published artifact"]
   ACC["⏳ M3 acceptance → release becomes satisfiable"]
@@ -36,9 +36,9 @@ flowchart TD
 
 | Unit | State | Note |
 |---|---|---|
-| E-A — status samplers | 🟡 next | contract and registry excerpt written; lane requested; issue filed by the child |
-| T-B — pre-release line | ⛔ blocked | the pipeline actively rejects a pre-release tag — see below |
-| milestone artifact | ⛔ blocked | nothing a stranger can install yet; blocks the outcome audit, not the fixes |
+| E-A — status samplers | 🟡 active | **live** in pane `%6422`; the epic owner files its own issue and ordered children |
+| T-B — pre-release line | 🟡 active | **live** in pane `%6423`, building the capability. The pipeline actively rejects a pre-release tag today — that is what T-B removes |
+| milestone artifact | ⛔ blocked | nothing a stranger can install yet; blocks the outcome audit — not the fixes. Unblocked by T-B |
 | outcome audit | ⏳ queued | runs against the published artifact, never a source build |
 | M1 | ❓ unknown | unvalidated experiment; deliberately untouched by M3 |
 

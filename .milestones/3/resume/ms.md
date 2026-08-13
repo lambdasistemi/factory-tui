@@ -23,12 +23,20 @@ accepted at the time of writing.
 
 ## Exact next action
 
-1. Confirm the machine owner seated `factory-tui-ms3-e<id>-status-samplers`.
-   If seated, deliver `/tmp/ms-3/e-a/brief.md` with `send-pointer` and
-   require a post-cursor `START`. If not, chase the lane request.
-2. Request the T-B lane and write `/tmp/ms-3/t-b/brief.md`.
-3. Answer Q-001/Q-002 when the project owner rules; both are recorded in
-   `ledger.md` and neither blocks E-A.
+Both children are briefed and both lanes are requested from the machine
+owner. Nothing else is queued behind them.
+
+1. When `factory-tui-ms3-e-unknown-status-samplers` is seated, deliver
+   `/tmp/ms-3/e-a/brief.md` with `send-pointer` and require a post-cursor
+   `START`. A pane with a spinner is not a dispatched worker.
+2. Same for `factory-tui-ms3-t-unknown-prerelease-line` and
+   `/tmp/ms-3/t-b/brief.md`.
+3. If either lane has not appeared, chase the machine owner by inbox file
+   at `/tmp/machine/owner-opus5-takeover/inbox/`. Do not build the window
+   yourself — this desk does not create panes.
+4. Relay Q-001 / Q-002 answers when the project owner rules. T-B stops
+   before its first tag push until Q-002 is answered; everything upstream
+   of that push proceeds without it.
 
 ## Standing constraints
 

@@ -32,16 +32,17 @@ separately authorized act (D-2026-08-13-m3-no-bugs).
   owns the production line; the pre-release line never displaces it).
 - Merges into it: E-A, and every standalone ticket below.
 - Status: **BLOCKED — does not exist and the pipeline currently rejects
-  it.** See contract C7 and T-B. This is the day-0 artifact blocker.
+  it.** See contract C7 and T-B, which is briefed and lane-requested.
+  This is the day-0 artifact blocker and it gates the outcome audit.
 
 ## Units
 
 | Id | Kind | Outcome | State | Lane |
 |---|---|---|---|---|
-| E-A | epic | Status is sampled, not assumed: samplers replace pane occupancy; published schema, example, census and default recipes move with it; agent-agnosticism gets an enforcing check | QUEUED — contract written, lane requested | window `factory-tui-ms3-e<id>-status-samplers` (requested) |
-| T-B | ticket | A clearly-marked milestone pre-release line a stranger can install, which cannot displace the product line | QUEUED — contract written, lane not yet requested | window `factory-tui-ms3-t<id>-prerelease-line` |
+| E-A | epic | Status is sampled, not assumed: samplers replace pane occupancy; published schema, example, census and default recipes move with it; agent-agnosticism gets an enforcing check | DISPATCHED — brief `/tmp/ms-3/e-a/brief.md` sha256 `c6fc721310faddea` (amended post-build with the host disk-lock constraint; the machine owner's build-time verification of `03039c79220307e7` predates that amendment); **LIVE** pane `%6422` (@4478), codex-raw/gpt-5.6-sol/high; acknowledged (tag format corrected by NOTE-001) | `factory-tui-ms3-e-unknown-status-samplers` |
+| T-B | ticket | A clearly-marked milestone pre-release line a stranger can install, which cannot displace the product line | DISPATCHED — brief `/tmp/ms-3/t-b/brief.md` sha256 `c1ed3c92081ac9ca`; **LIVE** pane `%6423` (@4479), codex-raw/gpt-5.6-sol/high; `START` received; first tag push gated on Q-002 | `factory-tui-ms3-t-unknown-prerelease-line` |
 
-Neither issue is filed yet: filing is the child's first act under its
+Neither issue is filed yet: filing is each child's first act under its
 contract (this desk does not file what a child can file).
 
 ## Priority order
