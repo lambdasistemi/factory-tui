@@ -13,28 +13,25 @@ A missing file is not an error. Generic example:
 
 https://github.com/lambdasistemi/factory-tui/blob/main/examples/projection.toml
 
+An agent setting this up on a host should load
+[AGENTS.md](AGENTS.md) and `skills/factory-tui/SKILL.md`.
+
 ## Install
 
-### macOS (Apple Silicon)
+Nix (supported path):
 
 ```
-brew tap lambdasistemi/tap
-brew install factory-tui
+nix profile add github:lambdasistemi/factory-tui
 ```
 
-### Linux
+Pin a tag with `github:lambdasistemi/factory-tui/v0.1.0`. From a
+checkout: `nix build .#cli` then `just ci`. Do not bind
+`target/release`.
+
+Without Nix: Homebrew `lambdasistemi/tap` on Apple Silicon, or a
+Linux binary from
 
 https://github.com/lambdasistemi/factory-tui/releases/latest
-
-### From source (Nix)
-
-```
-nix build github:lambdasistemi/factory-tui
-nix build .#cli
-just ci
-```
-
-Do not bind `target/release`.
 
 ## Run
 

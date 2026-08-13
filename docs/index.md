@@ -10,6 +10,10 @@ is yours. The crate does not know any host's product names.
 
 [Install](install.md) · [Using](using.md)
 
+An agent on a new host loads `AGENTS.md` and
+`skills/factory-tui/SKILL.md` from the repository. Nix install is
+`nix profile add github:lambdasistemi/factory-tui`.
+
 ## Today
 
 - One row is one tmux **window**. Panes stay inside that window.

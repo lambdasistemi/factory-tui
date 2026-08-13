@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# List live tmux sessions and windows for writing a projection file.
+set -euo pipefail
+
+if [ -z "${TMUX:-}" ]; then
+  echo "census: not inside tmux" >&2
+  exit 1
+fi
+
+printf 'session\twindow\n'
+tmux list-windows -a -F '#{session_name}	#{window_name}' | sort
