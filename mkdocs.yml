@@ -53,6 +53,7 @@ nav:
       - Flat terminal land: m1/flat-land.md
       - User-controlled compositor: m1/compositor.md
       - Decisions: m1/decisions.md
+      - State: m1/state.md
 
 extra_javascript:
   - https://cdn.jsdelivr.net/gh/paolino/dev-assets@main/mkdocs/docs/js/read-aloud.js
