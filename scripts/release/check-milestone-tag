@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Accept only DATA-001 milestone preview tags: milestone-3-preview.<ordinal>,
+# where <ordinal> is a positive decimal integer in canonical form.
+#
+# This namespace is deliberately disjoint from the product `v<x.y.z>` release
+# line and takes no part in product tag validation: see
+# scripts/release/check-version-consistency for that side.
+#
+# Exit 0  the argument is a valid milestone preview tag
+# Exit 1  the argument is not
+# Exit 2  wrong number of arguments
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: check-milestone-tag <tag>" >&2
+  exit 2
+fi
+
+tag="$1"
+
+# Anchored, so a leading `v`, surrounding whitespace, an embedded newline, or
+# any trailing suffix fails. `[1-9][0-9]*` is the canonical decimal form of a
+# positive integer: it excludes zero and leading zeros, so each ordinal has
+# exactly one spelling and therefore identifies exactly one commit.
+if [[ ! $tag =~ ^milestone-3-preview\.[1-9][0-9]*$ ]]; then
+  cat >&2 <<EOF
+not a milestone preview tag: '$tag'
+expected milestone-3-preview.<ordinal>, ordinal a positive decimal integer
+with no leading zeros and no leading 'v' (for example milestone-3-preview.1)
+EOF
+  exit 1
+fi
+
+echo "$tag is a valid milestone preview tag"

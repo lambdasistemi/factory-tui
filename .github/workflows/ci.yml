@@ -30,6 +30,7 @@ jobs:
           .#checks.x86_64-linux.deny
           .#checks.x86_64-linux.doc
           .#checks.x86_64-linux.version-consistency
+          .#checks.x86_64-linux.tag-policy
 
   test:
     name: CI build
@@ -82,6 +83,19 @@ jobs:
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - name: rustdoc (-D warnings)
         run: nix build --quiet .#checks.x86_64-linux.doc
+
+  tag-policy:
+    name: milestone tag policy
+    needs: build-gate
+    runs-on: nixos
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cachix/cachix-action@v17
+        with:
+          name: paolino
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: M3 preview tag namespace (both ways)
+        run: nix build --quiet .#checks.x86_64-linux.tag-policy
 
   deny:
     name: cargo-deny

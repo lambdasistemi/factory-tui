@@ -55,6 +55,10 @@
         checks = import ./nix/checks.nix {
           inherit craneEnv pkgs packages self;
           artifacts = identityArtifacts;
+          # The crate derivations see only the cleaned Cargo source, so the tag
+          # policy check needs the unfiltered tree to reach the release scripts,
+          # their proof, and the milestone doc.
+          src = ./.;
         };
         apps = import ./nix/apps.nix { inherit pkgs; };
 

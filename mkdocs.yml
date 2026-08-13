@@ -51,6 +51,7 @@ nav:
   - Home: index.md
   - Using: using.md
   - Install: install.md
+  - M3 preview (temporary): m3-preview.md
   - Research (unvalidated):
       - Flat terminal land: m1/flat-land.md
       - User-controlled compositor: m1/compositor.md
