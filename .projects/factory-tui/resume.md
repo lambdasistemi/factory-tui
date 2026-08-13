@@ -6,10 +6,8 @@ Ledger revision: this file's commit on `milestones`
 
 ## Next product action
 
-Wait for the machine owner to seat `factory-tui-ms3-no-bugs`, then
-dispatch the milestone owner with
-`/tmp/projects/factory-tui/ms-3/brief.md`. Do not implement from this
-desk.
+Supervise M3 owner `%6420`. Wait for `MAP` on `/tmp/ms-3/STATUS.md`.
+Do not implement from this desk.
 
 ## Active
 

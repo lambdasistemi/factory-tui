@@ -13,11 +13,14 @@
 ### M3 — no-bugs
 
 - Session: `factory-tui`
-- Window: `factory-tui-ms3-no-bugs` (requested from machine owner; not live)
+- Window: `2` `@4476` `factory-tui-ms3-no-bugs`
+- Pane: `%6420`
+- CLI: claude (`claude-opus-5[1m]` high)
 - Runtime: `/tmp/ms-3`
-- Brief: `/tmp/projects/factory-tui/ms-3/brief.md`
-- Owner CLI (once seated): claude (standing family; alternate from this desk)
+- Brief: `/tmp/ms-3/brief.md` (also `/tmp/projects/factory-tui/ms-3/brief.md`)
+- Owner: STARTed (2026-08-13). Leftover e8-t5 untouched.
 - GH: https://github.com/lambdasistemi/factory-tui/milestone/3
+- Seated by: machine owner `%5234` (NOTE-machine-ms3-seated)
 
 ## Other live factory-tui WHERE (not this desk)
 
