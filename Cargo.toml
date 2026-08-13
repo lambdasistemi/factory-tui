@@ -3,13 +3,14 @@ name = "factory-tui"
 version = "0.0.1"
 edition = "2021"
 license = "Apache-2.0"
-description = "Browse the agent factory as a tree of seats"
+description = "Browse live tmux sessions and windows"
 repository = "https://github.com/lambdasistemi/factory-tui"
 publish = false
 rust-version = "1.85"
 
 [dependencies]
 ratatui = "0.29"
+regex = "1.11"
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.1.4"
 

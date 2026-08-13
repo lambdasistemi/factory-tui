@@ -1,5 +1,7 @@
 //! Build a raw session/window tree from a live tmux census.
 
+use std::collections::BTreeMap;
+
 use crate::config::Config;
 use crate::tmux::Win;
 
@@ -16,6 +18,7 @@ pub enum Status {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Kind {
     SessionGroup,
+    Folder,
     Window,
 }
 
@@ -44,8 +47,16 @@ struct SessionBucket {
     windows: Vec<Win>,
 }
 
-/// Group every observed window under its configured session name.
+/// Group every observed window under its configured session name,
+/// or fold matching windows when projection rules are present.
 pub fn build(wins: Vec<Win>, config: &Config) -> Node {
+    if config.projects() {
+        return build_projected(wins, config);
+    }
+    build_raw(wins, config)
+}
+
+fn build_raw(wins: Vec<Win>, config: &Config) -> Node {
     let mut sessions: Vec<SessionBucket> = Vec::new();
 
     for win in wins {
@@ -95,9 +106,204 @@ fn window_node(parent: &str, win: Win, config: &Config) -> Node {
     }
 }
 
+fn build_projected(wins: Vec<Win>, config: &Config) -> Node {
+    let mut rows: Vec<(Win, Option<crate::config::Classified>)> = wins
+        .into_iter()
+        .map(|win| {
+            let classified = crate::config::classify(&win, config);
+            (win, classified)
+        })
+        .collect();
+    inherit_milestones(&mut rows, config);
+
+    let mut folders = FolderAcc::default();
+    let mut unmatched: Vec<Win> = Vec::new();
+    for (win, classified) in rows {
+        match classified {
+            Some(classified) => {
+                let path = folder_path(config, &classified);
+                if path.is_empty() {
+                    unmatched.push(win);
+                } else {
+                    folders.insert(path, win, classified, config);
+                }
+            }
+            None => unmatched.push(win),
+        }
+    }
+
+    let mut children = folders.into_nodes("project", config);
+    if !unmatched.is_empty() {
+        children.extend(build_raw(unmatched, config).children);
+    }
+    let status = rollup(&children);
+    Node {
+        id: "root".to_string(),
+        kind: Kind::SessionGroup,
+        title: "tmux".to_string(),
+        status,
+        win: None,
+        children,
+    }
+}
+
+fn inherit_milestones(rows: &mut [(Win, Option<crate::config::Classified>)], config: &Config) {
+    if !config.tree.inherit_milestone_from_desk {
+        return;
+    }
+    let mut session_ms: BTreeMap<String, String> = BTreeMap::new();
+    for (win, classified) in rows.iter() {
+        let Some(classified) = classified else {
+            continue;
+        };
+        if classified
+            .role
+            .as_deref()
+            .is_some_and(|role| config.tree.desk_roles.iter().any(|desk| desk == role))
+        {
+            if let Some(milestone) = &classified.milestone {
+                session_ms.insert(win.session.clone(), milestone.clone());
+            }
+        }
+    }
+    for (win, classified) in rows.iter_mut() {
+        let Some(classified) = classified else {
+            continue;
+        };
+        if classified.milestone.is_none() {
+            if let Some(milestone) = session_ms.get(&win.session) {
+                classified.milestone = Some(milestone.clone());
+            }
+        }
+    }
+}
+
+fn folder_path(config: &Config, classified: &crate::config::Classified) -> Vec<(String, String)> {
+    let mut path = Vec::new();
+    for field in &config.tree.folders {
+        match folder_step(field, classified) {
+            Some((id, title)) => path.push((id, title)),
+            None => break,
+        }
+    }
+    path
+}
+
+fn folder_step(field: &str, classified: &crate::config::Classified) -> Option<(String, String)> {
+    match field {
+        "project" => classified.project.clone().map(|value| (format!("p/{value}"), value)),
+        "milestone" => {
+            classified.milestone.clone().map(|value| (format!("m/{value}"), format!("M{value}")))
+        }
+        "epic" => classified.epic.clone().map(|value| {
+            let title = if value.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+                format!("e{value}")
+            } else {
+                format!("e-{value}")
+            };
+            (format!("e/{value}"), title)
+        }),
+        "ticket" => {
+            classified.ticket.clone().map(|value| (format!("t/{value}"), format!("t{value}")))
+        }
+        "role" => classified.role.clone().map(|value| (format!("r/{value}"), value)),
+        "goal" => classified.goal.clone().map(|value| (format!("g/{value}"), value)),
+        _ => None,
+    }
+}
+
+#[derive(Default)]
+struct FolderAcc {
+    children: BTreeMap<String, FolderAcc>,
+    titles: BTreeMap<String, String>,
+    desk: Option<Win>,
+    leaves: Vec<(Win, crate::config::Classified)>,
+}
+
+impl FolderAcc {
+    fn insert(
+        &mut self,
+        path: Vec<(String, String)>,
+        win: Win,
+        classified: crate::config::Classified,
+        config: &Config,
+    ) {
+        if path.is_empty() {
+            self.leaves.push((win, classified));
+            return;
+        }
+        let ((id, title), rest) = path.split_first().expect("path not empty");
+        self.titles.insert(id.clone(), title.clone());
+        let child = self.children.entry(id.clone()).or_default();
+        if rest.is_empty() {
+            let is_desk = classified
+                .role
+                .as_deref()
+                .is_some_and(|role| config.tree.desk_roles.iter().any(|desk| desk == role));
+            if is_desk && child.desk.is_none() {
+                child.desk = Some(win);
+                if let Some(goal) = &classified.goal {
+                    self.titles.insert(id.clone(), format!("{title} {goal}"));
+                }
+            } else {
+                child.leaves.push((win, classified));
+            }
+        } else {
+            child.insert(rest.to_vec(), win, classified, config);
+        }
+    }
+
+    fn into_nodes(self, parent: &str, config: &Config) -> Vec<Node> {
+        let mut nodes = Vec::new();
+        for (id, child) in self.children {
+            let title = self.titles.get(&id).cloned().unwrap_or_else(|| id.clone());
+            let node_id = format!("{parent}/{id}");
+            let desk = child.desk.clone();
+            let kids = child.into_nodes(&node_id, config);
+            let status = match &desk {
+                Some(win) => worse(status_of(win, config), rollup(&kids)),
+                None => rollup(&kids),
+            };
+            nodes.push(Node {
+                id: node_id,
+                kind: Kind::Folder,
+                title,
+                status,
+                win: desk,
+                children: kids,
+            });
+        }
+        for (win, classified) in self.leaves {
+            let title = leaf_title(&classified, &win);
+            let mut node = window_node(parent, win, config);
+            node.title = title;
+            nodes.push(node);
+        }
+        nodes
+    }
+}
+
+fn leaf_title(classified: &crate::config::Classified, win: &Win) -> String {
+    if let Some(ticket) = &classified.ticket {
+        let label = if ticket.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            format!("t{ticket}")
+        } else {
+            format!("t-{ticket}")
+        };
+        if let Some(goal) = &classified.goal {
+            if goal != ticket {
+                return format!("{label} {goal}");
+            }
+        }
+        return label;
+    }
+    classified.goal.clone().unwrap_or_else(|| win.name.clone())
+}
+
 fn status_of(win: &Win, config: &Config) -> Status {
     if !config.status.parked_substring.is_empty()
-        && win.panes.iter().any(|pane| pane.cmd.contains(&config.status.parked_substring))
+        && (win.name.contains(&config.status.parked_substring)
+            || win.panes.iter().any(|pane| pane.cmd.contains(&config.status.parked_substring)))
     {
         return Status::Parked;
     }
@@ -348,6 +554,51 @@ shop = "acme"
 
         drop(xdg);
         drop(factory);
+    }
+
+    #[test]
+    fn example_projection_folds_and_leaves_unmatched_under_session() {
+        let config = config::load_from_str(
+            r#"
+[sessions]
+infra = ["0-*"]
+
+[[rule]]
+window = "^(?:(?P<project>.+)-)?ms(?P<milestone>[0-9]+)-(?P<goal>.+)$"
+role = "desk"
+
+[[rule]]
+window = "^(?:(?P<project>.+)-)?e(?P<epic>[0-9]+)-t(?P<ticket>[0-9]+)-(?P<goal>.+)$"
+role = "ticket"
+
+[tree]
+folders = ["project", "milestone", "epic"]
+desk_roles = ["desk"]
+inherit_milestone_from_desk = true
+"#,
+        )
+        .expect("example config parses");
+        let wins = vec![
+            fake_win("shop", "@1", "acme-ms1-ship", "claude"),
+            fake_win("shop", "@2", "acme-e4-t18-rename", "codex"),
+            fake_win("shop", "@3", "notes", "bash"),
+        ];
+        let root = build(wins, &config);
+        let dump = dump(&root);
+        assert!(dump.contains("• acme"), "{dump}");
+        assert!(dump.contains("M1"), "{dump}");
+        assert!(dump.contains("t18 rename"), "{dump}");
+        assert!(dump.contains("notes"), "{dump}");
+        assert_eq!(root.window_count(), 3);
+    }
+
+    #[test]
+    fn no_rules_keeps_session_tree_even_if_names_look_folded() {
+        let wins = vec![fake_win("shop", "@1", "acme-ms1-ship", "bash")];
+        let root = build(wins, &Config::empty());
+        assert_eq!(root.children[0].kind, Kind::SessionGroup);
+        assert_eq!(root.children[0].title, "shop");
+        assert_eq!(root.children[0].children[0].title, "acme-ms1-ship");
     }
 
     #[test]
