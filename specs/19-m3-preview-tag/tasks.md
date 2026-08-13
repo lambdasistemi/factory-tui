@@ -11,7 +11,7 @@ Artifact ceiling: 80 lines / 4 KiB.
 
 ## SL-002 — audit wording correction
 
-- [ ] **T019-04A** Align the Nix check comment with the independently audited mutation coverage, without changing behavior.
+- [x] **T019-04A** Align the Nix check comment with the independently audited mutation coverage, without changing behavior.
 
 ## OP-001 — publication evidence
 
