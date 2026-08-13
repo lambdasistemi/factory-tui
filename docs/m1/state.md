@@ -18,7 +18,7 @@ Prototype (browse camera)
   ✅ tree of seats from live window names
   ✅ coloured snapshot observer (does not resize)
   ✅ Enter / double-click jump
-  ⏳ Nix-rooted package (not M1)
+  🟡 Nix-rooted `.#cli` + crane checks on this PR
   ⏳ standing --serve embed (not M1)
 
 Next after M1

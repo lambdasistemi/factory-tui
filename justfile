@@ -1,18 +1,26 @@
-# Spike helpers. Prefer `nix develop -c just …`.
+# Thin wrappers over the Nix gate. `nix flake check` == `just ci` == CI.
 
-default: dump
+set unstable := true
+
+default: ci
 
 build:
-    cargo build --release
-
-dump:
-    cargo run --release -- --dump
-
-tui:
-    cargo run --release
-
-fmt:
-    cargo fmt --all
+    nix run .#build
 
 test:
-    cargo test
+    nix run .#test
+
+fmt:
+    nix develop -c cargo fmt --all
+
+fmt-check:
+    nix run .#fmt-check
+
+clippy:
+    nix run .#clippy
+
+deny:
+    nix run .#deny
+
+ci:
+    nix run .#ci

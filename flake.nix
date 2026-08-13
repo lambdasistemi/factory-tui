@@ -1,9 +1,10 @@
 {
-  description = "factory-tui: browse the agent factory tree";
+  description = "factory-tui: browse the agent factory as a tree of seats";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    crane.url = "github:ipetkov/crane";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -11,8 +12,10 @@
   };
 
   outputs =
-    { nixpkgs
+    { self
+    , nixpkgs
     , flake-utils
+    , crane
     , rust-overlay
     , ...
     }:
@@ -23,18 +26,32 @@
           inherit system;
           overlays = [ (import rust-overlay) ];
         };
-        rust = pkgs.rust-bin.stable."1.90.0".default.override {
-          extensions = [ "rust-src" "rustfmt" "clippy" ];
+
+        rustToolchain = import ./nix/toolchain.nix { inherit pkgs; };
+
+        craneEnv = import ./nix/crane.nix {
+          inherit pkgs crane rustToolchain;
+          src = ./.;
         };
+
+        packages = import ./nix/packages.nix { inherit craneEnv; };
+        checks = import ./nix/checks.nix { inherit craneEnv; };
+        apps = import ./nix/apps.nix { inherit pkgs; };
       in
       {
-        devShells.default = pkgs.mkShell {
+        packages = {
+          default = packages.cli;
+          inherit (packages) cli;
+        };
+
+        inherit checks apps;
+
+        devShells.default = craneEnv.craneLib.devShell {
           packages = [
-            rust
             pkgs.just
+            pkgs.cargo-deny
             pkgs.tmux
           ];
-          RUST_BACKTRACE = "1";
         };
       }
     );

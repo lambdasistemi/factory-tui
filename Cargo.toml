@@ -3,7 +3,8 @@ name = "factory-tui"
 version = "0.0.1"
 edition = "2021"
 license = "Apache-2.0"
-description = "Browse the agent factory tree (not the tmux session list)"
+description = "Browse the agent factory as a tree of seats"
+repository = "https://github.com/lambdasistemi/factory-tui"
 publish = false
 rust-version = "1.85"
 

@@ -15,11 +15,15 @@ https://lambdasistemi.github.io/factory-tui/
 ## Build
 
 ```
-nix develop -c just build
-nix develop -c just test
+nix build .#cli          # GC-rooted binary in ./result/bin/factory-tui
+just ci                  # = nix flake check = CI
+nix develop -c cargo test
 ```
 
 `--dump` prints the live tree with no UI (must run inside tmux).
+
+`target/release` from a dev shell is not a release: a store GC can
+delete its glibc. Use `nix build .#cli`.
 
 ## License
 
