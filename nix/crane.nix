@@ -9,11 +9,14 @@
 let
   craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
+  # `Cargo.toml` is the only maintained product version. Everything Nix
+  # names — packages, checks, release artifacts — derives from this.
+  crateName = craneLib.crateNameFromCargoToml { cargoToml = src + "/Cargo.toml"; };
+
   commonArgs = {
     src = craneLib.cleanCargoSource src;
     strictDeps = true;
-    pname = "factory-tui";
-    version = "0.0.1";
+    inherit (crateName) pname version;
 
     buildInputs = pkgs.lib.optionals pkgs.stdenv.isDarwin [
       pkgs.libiconv
@@ -36,4 +39,5 @@ let
 in
 {
   inherit craneLib commonArgs cargoArtifacts muslArgs cargoArtifactsMusl;
+  inherit (crateName) version;
 }

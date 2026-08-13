@@ -29,6 +29,7 @@ jobs:
           .#checks.x86_64-linux.fmt
           .#checks.x86_64-linux.deny
           .#checks.x86_64-linux.doc
+          .#checks.x86_64-linux.version-consistency
 
   test:
     name: CI build
@@ -94,3 +95,16 @@ jobs:
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - name: cargo-deny
         run: nix build --quiet .#checks.x86_64-linux.deny
+
+  version-consistency:
+    name: version consistency
+    needs: build-gate
+    runs-on: nixos
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cachix/cachix-action@v17
+        with:
+          name: paolino
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - name: Cargo.toml vs Nix package vs binary identity
+        run: nix build --quiet .#checks.x86_64-linux.version-consistency

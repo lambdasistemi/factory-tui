@@ -8,6 +8,7 @@ use ratatui::Frame;
 
 use crate::ansi;
 use crate::app::App;
+use crate::build_info;
 use crate::geometry::rects_for;
 use crate::tmux::{self, Pane, Win};
 use crate::tree::{status_label, Kind, Status};
@@ -38,7 +39,7 @@ impl App {
         self.draw_top(f, chunks[0]);
         self.draw_tree(f, body[0]);
         self.draw_seat(f, body[1]);
-        self.draw_bottom(f, chunks[2]);
+        draw_bottom(f, chunks[2], self.status.as_str());
     }
 
     fn draw_top(&self, f: &mut Frame, area: Rect) {
@@ -124,23 +125,37 @@ impl App {
         self.schematic_area = schematic_area;
         self.preview_area = preview_area;
     }
+}
 
-    fn draw_bottom(&self, f: &mut Frame, area: Rect) {
-        let help =
-            "j/k move  Tab pane  Enter / double-click go  click pane box to preview  r refresh  q quit";
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(1), Constraint::Length(1)])
-            .split(area);
-        f.render_widget(
-            Paragraph::new(self.status.as_str()).style(Style::default().fg(Color::Blue)),
-            chunks[0],
-        );
-        f.render_widget(
-            Paragraph::new(help).style(Style::default().add_modifier(Modifier::DIM)),
-            chunks[1],
-        );
-    }
+/// The persistent popup chrome: the status line, the build identity, and the
+/// key help line.
+///
+/// The identity text comes from [`build_info::display`]; this module neither
+/// discovers build metadata nor formats a second version of it.
+fn draw_bottom(f: &mut Frame, area: Rect, status: &str) {
+    let help =
+        "j/k move  Tab pane  Enter / double-click go  click pane box to preview  r refresh  q quit";
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(area);
+
+    let identity = build_info::display(build_info::current());
+    let identity_width = u16::try_from(identity.chars().count()).unwrap_or(u16::MAX);
+    let top = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(0), Constraint::Length(identity_width)])
+        .split(chunks[0]);
+
+    f.render_widget(Paragraph::new(status).style(Style::default().fg(Color::Blue)), top[0]);
+    f.render_widget(
+        Paragraph::new(identity).style(Style::default().add_modifier(Modifier::DIM)),
+        top[1],
+    );
+    f.render_widget(
+        Paragraph::new(help).style(Style::default().add_modifier(Modifier::DIM)),
+        chunks[1],
+    );
 }
 
 /// Everything the seat body draws from. Keeping it independent of `App` is
@@ -657,5 +672,115 @@ mod tests {
 
         // No pane bound: the site still renders something.
         assert_eq!(box_title(None, 40), " ? ");
+    }
+
+    /// The bottom chrome, as a terminal would show it. Built on the same
+    /// `render`/`frame_text` readers the pane-title proofs use.
+    fn render_chrome(width: u16, status: &str) -> String {
+        frame_text(&render(width, 2, |f| draw_bottom(f, f.area(), status)))
+    }
+
+    #[test]
+    fn the_chrome_shows_the_canonical_build_identity() {
+        let screen = render_chrome(120, "snapshot preview");
+        let identity = build_info::display(build_info::current());
+        // Positive control: pre-existing chrome text must be visible to the
+        // same buffer reader, so a blind reader cannot report a false pass.
+        assert!(screen.contains("snapshot preview"), "control missing from:\n{screen}");
+        assert!(screen.contains(&identity), "identity {identity} missing from:\n{screen}");
+    }
+
+    #[test]
+    fn the_chrome_shows_both_identity_fields() {
+        let screen = render_chrome(120, "snapshot preview");
+        let identity = build_info::current();
+        assert!(screen.contains(identity.version), "version missing from:\n{screen}");
+        assert!(screen.contains(identity.revision), "revision missing from:\n{screen}");
+    }
+
+    #[test]
+    fn the_chrome_still_shows_the_keys() {
+        let screen = render_chrome(120, "snapshot preview");
+        assert!(screen.contains("q quit"), "help missing from:\n{screen}");
+    }
+
+    /// Renderers the popup entrypoints must actually reach, as
+    /// `(entrypoint signature, renderer that must be invoked)`.
+    ///
+    /// Adding an entrypoint is a row here, not new logic.
+    const ENTRYPOINT_RENDERERS: &[(&str, &str)] = &[("pub fn draw(", "draw_bottom")];
+
+    /// The body of the named function, with line comments removed.
+    fn entrypoint_body(source: &str, signature: &str) -> String {
+        let start = source
+            .find(signature)
+            .unwrap_or_else(|| panic!("no entrypoint `{signature}` in this module"));
+        let rest = &source[start..];
+        let open = rest.find('{').expect("an entrypoint has a body");
+        let mut depth = 0usize;
+        let mut end = None;
+        for (offset, c) in rest[open..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(open + offset);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let body = &rest[open..=end.expect("an entrypoint body closes its braces")];
+        body.lines()
+            .map(|line| line.split("//").next().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// True when `name` is *called* here, rather than merely mentioned. A
+    /// binding that keeps the symbol alive is not a call.
+    fn invokes(body: &str, name: &str) -> bool {
+        body.match_indices(name)
+            .any(|(at, _)| body[at + name.len()..].trim_start().starts_with('('))
+    }
+
+    /// A helper test renders the chrome directly, so it stays green even if
+    /// the popup stops drawing it. This reconciles each entrypoint's own body
+    /// against the renderers it is required to reach.
+    #[test]
+    fn every_popup_entrypoint_reaches_its_renderers() {
+        let source = include_str!("ui.rs");
+        for (signature, renderer) in ENTRYPOINT_RENDERERS {
+            let body = entrypoint_body(source, signature);
+            assert!(
+                invokes(&body, renderer),
+                "entrypoint `{signature}` no longer calls `{renderer}`:\n{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_reachability_reader_extracts_one_entrypoint_body() {
+        let body = entrypoint_body(include_str!("ui.rs"), "pub fn draw(");
+        assert!(body.contains("draw_top"), "extraction missed the body:\n{body}");
+        assert!(!body.contains("fn draw_bottom"), "extraction swallowed the module");
+    }
+
+    #[test]
+    fn the_reachability_reader_tells_a_call_from_a_mention() {
+        assert!(invokes("draw_bottom(f, area, status);", "draw_bottom"));
+        assert!(invokes("draw_bottom (f);", "draw_bottom"));
+        assert!(!invokes("let _keep = draw_bottom;", "draw_bottom"));
+        assert!(!invokes("let _keep: fn(&mut Frame) = draw_bottom;", "draw_bottom"));
+    }
+
+    #[test]
+    fn the_reachability_reader_ignores_a_commented_out_call() {
+        let commented = "pub fn draw(x: u8) {\n    // draw_bottom(f);\n    let _ = x;\n}\n";
+        assert!(!invokes(&entrypoint_body(commented, "pub fn draw("), "draw_bottom"));
+        let real = "pub fn draw(x: u8) {\n    draw_bottom(x);\n}\n";
+        assert!(invokes(&entrypoint_body(real, "pub fn draw("), "draw_bottom"));
     }
 }

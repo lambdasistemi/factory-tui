@@ -34,8 +34,6 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        version = "0.0.1";
-
         rustToolchain = import ./nix/toolchain.nix { inherit pkgs; };
 
         craneEnv = import ./nix/crane.nix {
@@ -43,8 +41,21 @@
           src = ./.;
         };
 
-        packages = import ./nix/packages.nix { inherit craneEnv; };
-        checks = import ./nix/checks.nix { inherit craneEnv; };
+        # One version authority: Cargo.toml, read through the crane env and
+        # reused by the packages, the checks, and every release artifact.
+        inherit (craneEnv) version;
+
+        # Exact source revision when the flake source is clean, the same
+        # commit marked `-dirty` when it is not, and an empty string when Nix
+        # has no source metadata at all. Evaluation supplies this; the build
+        # never runs Git, reads a clock, or touches the network.
+        revision = self.rev or self.dirtyRev or "";
+
+        packages = import ./nix/packages.nix { inherit craneEnv revision; };
+        checks = import ./nix/checks.nix {
+          inherit craneEnv pkgs packages self;
+          artifacts = identityArtifacts;
+        };
         apps = import ./nix/apps.nix { inherit pkgs; };
 
         linuxArtifacts = dev-assets.lib.mkLinuxArtifacts {
@@ -87,6 +98,20 @@
           formulaClass = "FactoryTuiDev";
           formulaVersion = devVersion;
         };
+
+        # Every release artifact this system publishes, offered to the
+        # identity check so its stated version is reconciled rather than
+        # trusted. A `dev` artifact additionally has to carry the source
+        # revision it claims to be a snapshot of.
+        identityArtifacts =
+          pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            "artifact.linux-release" = { inherit (linuxArtifacts) name; kind = "release"; };
+            "artifact.linux-dev" = { inherit (linuxDevArtifacts) name; kind = "dev"; };
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+            "artifact.darwin-release" = { inherit (darwinArtifacts) name; kind = "release"; };
+            "artifact.darwin-dev" = { inherit (darwinDevArtifacts) name; kind = "dev"; };
+          };
       in
       {
         packages = {
