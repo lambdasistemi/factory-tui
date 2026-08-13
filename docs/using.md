@@ -12,6 +12,7 @@ bind-key S     display-popup -E -w 90% -h 90% factory-tui
 | `j` `k` / arrows | move |
 | `h` `l` / `Space` | collapse / expand |
 | `Enter` / double-click | jump and quit |
+| `Tab` / `[` `]` | cycle the previewed pane of a multi-pane window |
 | `r` | refresh |
 | `q` / `Esc` | quit |
 
@@ -55,36 +56,51 @@ metadata, the release and dev artifact names, and the lines the shipped
 glibc and musl binaries print are each checked against those, so a build
 whose artifacts disagree with its manifest never gets a green run.
 
-## Default tree
+## The tree
 
-No file, or an empty file, means session → window. Session names can
-be rewritten with `[sessions.alias]`. Sessions matching
-`[sessions.infra]` are tagged `[infra]`. `[status]` classifies a
-window from pane command names (`running`, `idle`) or a
+The tree is tmux: session → window → pane. Every live pane appears
+exactly once.
+
+A window with **one** pane *is* that pane: no child row, and selecting
+it previews and jumps there. A window with **several** panes has one
+child row per pane, each previewing and jumping to exactly that pane;
+selecting the window row keeps the pane you were watching, or its
+active one.
+
+Sessions matching `[sessions] infra` are tagged `[infra]`. `[status]`
+classifies a window from pane command names (`running`, `idle`) or a
 `parked_substring`.
 
 Config path: `$FACTORY_TUI_CONFIG`, else
-`~/.config/factory-tui/config.toml`. A missing file is not an error.
+`~/.config/factory-tui/config.toml`. A missing or empty file is not an
+error, and means the raw tree.
 
-## Projection file
+## Reinterpreters
 
-Copy the generic example and edit it:
+Configuration is **label-only**. Copy the generic example and edit it:
 
-https://github.com/lambdasistemi/factory-tui/blob/main/examples/projection.toml
-
-`[[rule]]` tables are tried in order. The first `window` regex that
-matches wins. Named captures become fields (`project`, `milestone`,
-`epic`, `ticket`, `goal`, `role`). An optional `session` regex must
-also match.
-
-`[tree] folders` is the fold path. A window that matches no rule
-stays under its tmux session.
+https://github.com/lambdasistemi/factory-tui/blob/main/examples/config.toml
 
 ```toml
-[tree]
-folders = ["project", "milestone", "epic"]
-desk_roles = ["desk"]
-inherit_milestone_from_desk = true
+[[reinterpreter]]
+scope = "window"
+pattern = "^(?P<service>[a-z]+)-deploy-(?P<env>[a-z]+)$"
+label = "$service to $env"
 ```
 
-There is no scripting language in the file.
+- `scope` is `session`, `window`, or `pane`; any other value is a
+  configuration error, not a rule that silently never fires.
+- `pattern` is a regex matched against the raw tmux name, and the span
+  it matches is replaced by `label`, where `$name` is a named capture.
+- Entries are tried in order and the first match wins. A row that
+  matches nothing, or whose replacement would display nothing, renders
+  raw.
+- A rewritten row keeps its raw tmux name beside the new text, so rows
+  that reinterpret alike stay distinct and you can always read back
+  what tmux calls a seat.
+
+What a reinterpreter cannot do: add, drop, merge, split, reorder or
+reparent a row. The tree is built from the tmux census before any of
+this is read, so there is nothing for a rule to reach. To display a
+session under another name, scope a rule to `session` — there is no
+alias table, and no scripting language in the file.

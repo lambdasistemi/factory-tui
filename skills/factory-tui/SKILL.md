@@ -1,45 +1,45 @@
 ---
 name: factory-tui
 description: >
-  Set up and use factory-tui, a popup tmux browser (tree of sessions
-  and windows, snapshot preview, Enter to jump). Load when the
-  operator says factory-tui, F1 browser, tmux factory tree, project
-  the factory, fold window names, write config.toml, or "point another
-  operator at factory-tui". Also load for first-run Nix install, tmux
-  bind, or when factory-tui --dump is a flat session list that should
-  be a project/milestone/epic tree. Triggers: factory-tui, F1,
-  projection.toml, config.toml, tmux census, fold windows,
+  Set up and use factory-tui, a popup tmux browser (tree of sessions,
+  windows and panes, snapshot preview, Enter to jump). Load when the
+  operator says factory-tui, F1 browser, tmux factory tree, rename
+  window rows, write config.toml, or "point another operator at
+  factory-tui". Also load for first-run Nix install, tmux bind, or when
+  factory-tui --dump does not show every live pane. Triggers:
+  factory-tui, F1, config.toml, reinterpreter, tmux census,
   nix profile add factory-tui.
 ---
 
 # factory-tui setup
 
-A tmux popup: left = tree, right = snapshot, Enter jumps. Default
-tree is session → window. A **local** file may fold names. The crate
-has no operator's product names.
+A tmux popup: left = tree, right = snapshot, Enter jumps. The tree is
+tmux itself — session → window → pane. A **local** file may rewrite
+what a row displays; nothing may change the shape of the tree. The
+crate has no operator's product names.
 
 If you are not in this repository, read this file from
 https://github.com/lambdasistemi/factory-tui/blob/main/skills/factory-tui/SKILL.md
 and the example from
-https://github.com/lambdasistemi/factory-tui/blob/main/examples/projection.toml
+https://github.com/lambdasistemi/factory-tui/blob/main/examples/config.toml
 
 ## Stop — first run
 
 If `factory-tui` is missing from PATH, or
 `~/.config/factory-tui/config.toml` does not exist, do **not** guess
-this host's factory. Interview, then write files.
+this host's naming. Interview, then write files.
 
 Ask only what you cannot see from a census:
 
 1. Popup key (default: `F1` and prefix+`S`)
 2. Which sessions are infrastructure (not a product), if any
-3. Short session names that should display as a longer product name
-4. Whether window names already use `ms<N>`, `-e<id>-`, `-t<id>-`
-   (if yes, start from `examples/projection.toml` and only add
-   aliases)
+3. Which cryptic session, window or pane names should read as
+   something else, and what
 
-Never commit `~/.config/factory-tui/config.toml`. Never copy another
-operator's aliases into the repo.
+A config file is optional: the raw tree is already correct and
+complete, and reinterpreters only make it easier to read. Never commit
+`~/.config/factory-tui/config.toml`, and never copy another operator's
+labels into the repo.
 
 ## Procedure
 
@@ -69,16 +69,22 @@ operator's aliases into the repo.
    If `census` is not in the worktree, run:
 
    ```
-   tmux list-windows -a -F '#{session_name}	#{window_name}'
+   tmux list-panes -a -F '#{session_name}	#{window_name}	#{pane_title}'
    ```
 
 3. **Write** `$FACTORY_TUI_CONFIG` if set, else
    `~/.config/factory-tui/config.toml`. Schema:
    [references/config.md](references/config.md). Start from
-   `examples/projection.toml` when the names already match that
-   grammar; otherwise write `[[rule]]` regexes from the census.
-4. **Verify** `factory-tui --dump` folds the way the operator asked.
-   Unmatched windows must still appear under their session.
+   `examples/config.toml` and replace its example patterns with ones
+   built from the census.
+4. **Verify** every live pane is reachable — these two counts must
+   agree — and that the rows the operator asked about now read the way
+   they wanted. A row nothing matched stays raw, which is correct.
+
+   ```
+   tmux list-panes -a -F '#{pane_id}' | sort -u | wc -l
+   factory-tui --dump | grep -cE '\[pane=[^]]+\]'
+   ```
 5. **Bind** (idempotent — skip if already present):
 
    ```tmux
@@ -92,6 +98,8 @@ operator's aliases into the repo.
 ## Using it after setup
 
 - F1 (or prefix+S): popup browser
-- `--dump`: same tree, no UI
-- Missing config file: session → window, not an error
+- `--dump`: same tree, no UI, with `[window=…]` / `[pane=…]` markers
+- Missing config file: the raw tree, not an error
 - Reload config by restarting the popup (quit with `q` and open again)
+- A pane row jumps to that exact pane; `Tab` cycles the previewed pane
+  of a multi-pane window

@@ -10,8 +10,9 @@ use crate::ansi;
 use crate::app::App;
 use crate::build_info;
 use crate::geometry::rects_for;
-use crate::tmux::{self, Pane, Win};
-use crate::tree::{status_label, Kind, Status};
+use crate::label::{cells, fit_cells, pane_label};
+use crate::tmux::{Pane, Win};
+use crate::tree::{status_field, Kind, Status};
 
 impl App {
     pub fn draw(&mut self, f: &mut Frame) {
@@ -81,7 +82,7 @@ impl App {
             } else {
                 String::new()
             };
-            let status = status_label(row.status);
+            let status = status_field(row.status);
             let line = format!("{indent}{marker} {}{count}", row.title);
             let mut spans = vec![Span::styled(line, row_style(row.kind, row.status, selected))];
             if !status.is_empty() {
@@ -229,74 +230,6 @@ fn draw_seat_body(f: &mut Frame, inner: Rect, view: &SeatView) -> (Rect, Rect) {
 /// Fixed lead-in of the preview metadata line.
 const META_PREFIX: &str = "preview ";
 
-/// Terminal cells a string occupies, measured the way ratatui places it.
-fn cells(text: &str) -> usize {
-    Span::raw(text).width()
-}
-
-/// Drop escape sequences first, then every remaining control character, then
-/// collapse the whitespace that leaves behind. A pane title is written by
-/// whatever runs in the pane, so raw it can recolour, erase, or — where a label
-/// is drawn from a plain string — split the frame it lands in.
-///
-/// The control pass does not assume what `strip_ansi` chooses to keep, so it
-/// is redundant with today's keep-list and no input can distinguish it — see
-/// the equivalent mutant M07 in the campaign log. It stays as this function's
-/// own stated contract, not as a check anything relies on.
-fn sanitize_label(raw: &str) -> String {
-    let stripped = tmux::strip_ansi(raw);
-    let plain: String = stripped.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
-    plain.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// Cut to `max` terminal cells, marking the cut so a shortened title still
-/// reads as one.
-fn fit_cells(text: &str, max: u16) -> String {
-    let max = max as usize;
-    if max == 0 {
-        return String::new();
-    }
-    if cells(text) <= max {
-        return text.to_string();
-    }
-    let budget = max - 1;
-    let mut out = String::new();
-    let mut used = 0;
-    let mut buf = [0u8; 4];
-    for ch in text.chars() {
-        let w = cells(ch.encode_utf8(&mut buf));
-        if used + w > budget {
-            break;
-        }
-        out.push(ch);
-        used += w;
-    }
-    out.push('…');
-    out
-}
-
-/// One identity rule for every pane label site: the operator-authored tmux
-/// title when it survives sanitation, otherwise the `{index}:{command}`
-/// identity this view has always used. Never blank while a cell is free, never
-/// wider than `max_width` terminal cells.
-fn pane_label(pane: &Pane, max_width: u16) -> String {
-    // Emptiness that matters here is *visible* emptiness, not string
-    // emptiness. A combining mark, a zero-width space or a lone variation
-    // selector survives sanitation as a nonempty String and paints nothing, so
-    // testing `is_empty()` hands a blank box to the reader and calls it an
-    // identity.
-    let title = sanitize_label(&pane.title);
-    let text = if cells(&title) > 0 {
-        title
-    } else {
-        // The fallback is visible whatever the index and command are: the
-        // colon is neither control nor whitespace, so it survives sanitation
-        // and pays for at least one cell. There is no third case to guard.
-        sanitize_label(&format!("{}:{}", pane.index, pane.cmd))
-    };
-    fit_cells(&text, max_width)
-}
-
 fn label_or_unknown(pane: Option<&Pane>, budget: u16) -> String {
     match pane {
         Some(pane) => pane_label(pane, budget),
@@ -348,10 +281,10 @@ fn row_style(kind: Kind, status: Status, selected: bool) -> Style {
     // Dark ANSI accents only — White/Cyan/Yellow/Gray vanish on a light
     // terminal background.
     let mut s = match kind {
-        Kind::SessionGroup | Kind::Folder => {
-            Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
-        }
+        Kind::SessionGroup => Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD),
         Kind::Window => Style::default(),
+        // A pane row is a detail of the window above it, not a peer of it.
+        Kind::Pane => Style::default().add_modifier(Modifier::DIM),
     };
     if status == Status::Parked {
         s = s.fg(Color::Red);
@@ -377,6 +310,7 @@ mod tests {
     use ratatui::Terminal;
 
     use super::*;
+    use crate::label::sanitize_label;
 
     /// A title a hostile pane can set with a single escape sequence: colour,
     /// screen erase, an OSC window-title write, a carriage return, a newline,

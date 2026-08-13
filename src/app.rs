@@ -9,6 +9,7 @@ use ratatui::layout::Rect;
 
 use crate::config::Config;
 use crate::geometry::{contains, hit, rects_for};
+use crate::label;
 use crate::peek;
 use crate::tmux::{self, Win};
 use crate::tree::{self, Kind, Node};
@@ -57,7 +58,7 @@ enum ClickTarget {
 impl App {
     pub fn new(config: Config) -> io::Result<Self> {
         let wins = tmux::query_all()?;
-        let root = tree::build(wins, &config);
+        let root = tree::build(wins, &config.status);
         let mut expanded = HashSet::new();
         expand_defaults(&root, &mut expanded);
         let mut app = Self {
@@ -88,7 +89,7 @@ impl App {
 
     pub fn refresh(&mut self) -> io::Result<()> {
         let keep = self.current().map(|r| r.id.clone());
-        self.root = tree::build(tmux::query_all()?, &self.config);
+        self.root = tree::build(tmux::query_all()?, &self.config.status);
         expand_defaults(&self.root, &mut self.expanded);
         self.rebuild_rows();
         if let Some(id) = keep {
@@ -104,7 +105,7 @@ impl App {
 
     fn rebuild_rows(&mut self) {
         self.rows.clear();
-        flatten(&self.root, 0, &self.expanded, &mut self.rows);
+        flatten(&self.root, 0, &self.expanded, &self.config, &mut self.rows);
         self.clamp();
     }
 
@@ -144,19 +145,10 @@ impl App {
     }
 
     fn sync_preview_pane(&mut self) {
-        let Some(win) = self.selected_win() else {
-            self.preview_pane = None;
-            return;
-        };
-        let still_there =
-            self.preview_pane.as_ref().is_some_and(|id| win.panes.iter().any(|p| &p.id == id));
-        if !still_there {
-            self.preview_pane = win
-                .panes
-                .iter()
-                .find(|p| p.active)
-                .or_else(|| win.panes.first())
-                .map(|p| p.id.clone());
+        let current = self.preview_pane.clone();
+        let next = self.selected_node().and_then(|node| preview_pane_for(node, current.as_deref()));
+        if next != self.preview_pane {
+            self.preview_pane = next;
             self.preview_from_bottom = 0;
         }
     }
@@ -357,8 +349,10 @@ impl App {
     }
 }
 
+/// Everything with children starts open. The tree is what tmux has, and a row
+/// folded away by default is a seat the reader has to already know about.
 fn expand_defaults(node: &Node, set: &mut HashSet<String>) {
-    if node.kind == Kind::SessionGroup || node.kind == Kind::Folder {
+    if !node.children.is_empty() {
         set.insert(node.id.clone());
     }
     for c in &node.children {
@@ -366,12 +360,20 @@ fn expand_defaults(node: &Node, set: &mut HashSet<String>) {
     }
 }
 
-fn flatten(node: &Node, depth: usize, expanded: &HashSet<String>, rows: &mut Vec<Row>) {
+fn flatten(
+    node: &Node,
+    depth: usize,
+    expanded: &HashSet<String>,
+    config: &Config,
+    rows: &mut Vec<Row>,
+) {
     if node.id != "root" {
         rows.push(Row {
             id: node.id.clone(),
             depth,
-            title: node.title.clone(),
+            // Labels are applied here, on the way to the screen, and never on
+            // the way into the tree.
+            title: label::node_label(node, config),
             kind: node.kind,
             status: node.status,
             has_children: !node.children.is_empty(),
@@ -382,7 +384,7 @@ fn flatten(node: &Node, depth: usize, expanded: &HashSet<String>, rows: &mut Vec
     if node.id == "root" || expanded.contains(&node.id) {
         let next = if node.id == "root" { depth } else { depth + 1 };
         for c in &node.children {
-            flatten(c, next, expanded, rows);
+            flatten(c, next, expanded, config, rows);
         }
     }
 }
@@ -392,4 +394,96 @@ fn find_node<'a>(node: &'a Node, id: &str) -> Option<&'a Node> {
         return Some(node);
     }
     node.children.iter().find_map(|c| find_node(c, id))
+}
+
+/// Which pane the preview — and therefore `Enter` — should be on for the
+/// selected row.
+///
+/// A row that names one exact pane wins over whatever was being watched; that
+/// is the whole point of selecting it. Anything else keeps the pane already
+/// being watched while it still exists, then falls back to the window's active
+/// pane exactly as before.
+fn preview_pane_for(node: &Node, current: Option<&str>) -> Option<String> {
+    if let Some(exact) = tree::selected_pane_id(node) {
+        return Some(exact.to_string());
+    }
+    let win = node.win.as_ref()?;
+    if let Some(id) = current {
+        if win.panes.iter().any(|pane| pane.id == id) {
+            return Some(id.to_string());
+        }
+    }
+    win.panes.iter().find(|pane| pane.active).or_else(|| win.panes.first()).map(|p| p.id.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::preview_pane_for;
+    use crate::config::Config;
+    use crate::tmux::{Pane, Win};
+    use crate::tree::{self, Kind};
+
+    fn pane(id: &str, index: &str) -> Pane {
+        Pane {
+            id: id.to_string(),
+            index: index.to_string(),
+            left: 0,
+            top: 0,
+            width: 80,
+            height: 24,
+            active: index == "1",
+            cmd: "claude".to_string(),
+            path: "/tmp".to_string(),
+            title: String::new(),
+        }
+    }
+
+    fn win(id: &str, name: &str, panes: Vec<Pane>) -> Win {
+        Win {
+            session: "work".to_string(),
+            id: id.to_string(),
+            index: id.trim_start_matches('@').to_string(),
+            name: name.to_string(),
+            w: 80,
+            h: 24,
+            panes,
+        }
+    }
+
+    #[test]
+    fn selecting_a_pane_node_targets_that_pane() {
+        let root = tree::build(
+            vec![
+                win("@1", "solo", vec![pane("%10", "0")]),
+                win("@2", "split", vec![pane("%20", "0"), pane("%21", "1"), pane("%22", "2")]),
+            ],
+            &Config::empty().status,
+        );
+        let session = &root.children[0];
+        let solo = &session.children[0];
+        let split = &session.children[1];
+
+        // A one-pane window is its pane, whatever was being watched before.
+        assert_eq!(preview_pane_for(solo, Some("%99")).as_deref(), Some("%10"));
+
+        // Each pane row jumps to exactly itself.
+        assert_eq!(split.children.len(), 3, "the split window has no pane rows");
+        for (row, expected) in split.children.iter().zip(["%20", "%21", "%22"]) {
+            assert_eq!(row.kind, Kind::Pane);
+            assert_eq!(
+                preview_pane_for(row, Some("%99")).as_deref(),
+                Some(expected),
+                "a pane row must override the pane already being watched"
+            );
+        }
+
+        // The multi-pane window row itself keeps the unchanged behaviour: hold
+        // the watched pane, else the active one.
+        assert_eq!(preview_pane_for(split, Some("%22")).as_deref(), Some("%22"));
+        assert_eq!(preview_pane_for(split, None).as_deref(), Some("%21"));
+        assert_eq!(preview_pane_for(split, Some("%99")).as_deref(), Some("%21"));
+
+        // A row that binds no window previews nothing.
+        assert_eq!(preview_pane_for(session, Some("%20")), None);
+    }
 }
