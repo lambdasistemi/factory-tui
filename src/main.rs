@@ -1,6 +1,7 @@
 //! factory-tui — a tree browser over live tmux.
 //!
-//! Default: session → window. An optional config file may fold names.
+//! The tree is tmux itself: session → window → pane. An optional config file
+//! may rewrite what a row *says*; nothing may change what the tree *is*.
 //! Right: a text snapshot of the selected pane (`tmux capture-pane`).
 //! Enter jumps the attached client there and exits.
 //!
@@ -12,6 +13,7 @@ mod app;
 mod build_info;
 mod config;
 mod geometry;
+mod label;
 mod peek;
 mod tmux;
 mod tree;
@@ -47,7 +49,8 @@ fn main() -> io::Result<()> {
     if env::args().any(|a| a == "--dump") {
         let config = config::load();
         let wins = tmux::query_all()?;
-        print!("{}", tree::dump(&tree::build(wins, &config)));
+        let root = tree::build(wins, &config.status);
+        print!("{}", tree::dump(&root, &config));
         return Ok(());
     }
 

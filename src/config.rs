@@ -1,6 +1,5 @@
 //! Optional, host-local configuration for the raw tmux tree.
 
-use std::collections::BTreeMap;
 use std::env;
 use std::error::Error;
 use std::fmt;
@@ -14,77 +13,52 @@ use serde::Deserialize;
 
 const CONFIG_ENV: &str = "FACTORY_TUI_CONFIG";
 
-/// All configuration currently understood by `factory-tui`.
+/// All configuration currently understood by `factory-tui`. None of it can
+/// change the shape of the tree: the tmux census decides that alone, and
+/// everything here supplies display strings and status vocabulary.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(default)]
 pub struct Config {
-    /// Session aliases, infrastructure patterns, and future transport buckets.
+    /// Infrastructure patterns.
     pub sessions: SessionsConfig,
     /// Pane-command rules used to classify window status.
     pub status: StatusConfig,
-    /// Ordered window classifiers. First match wins.
-    pub rule: Vec<Rule>,
-    /// How classified windows are folded into folders.
-    pub tree: TreeConfig,
+    /// Ordered label-only rules. First match in a scope wins.
+    pub reinterpreter: Vec<Reinterpreter>,
 }
 
-/// One `[[rule]]` table: a window regex plus optional session regex and role.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
-#[serde(default)]
-pub struct Rule {
-    /// Regex matched against the tmux window name. Named captures become fields.
-    pub window: String,
-    /// Optional regex matched against the tmux session name.
-    pub session: Option<String>,
-    /// Role assigned when this rule matches (`desk`, `ticket`, …).
-    pub role: Option<String>,
+/// Which kind of row a reinterpreter may relabel. Closed on purpose: an
+/// unrecognised scope is a configuration error, not a rule that never fires.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Scope {
+    /// A tmux session row.
+    Session,
+    /// A tmux window row.
+    Window,
+    /// A tmux pane row.
+    Pane,
 }
 
-/// The `[tree]` table.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
-#[serde(default)]
-pub struct TreeConfig {
-    /// Ordered field names used as folder levels (`project`, `milestone`, `epic`).
-    pub folders: Vec<String>,
-    /// Roles whose window is the jump target of its folder.
-    pub desk_roles: Vec<String>,
-    /// Copy a desk's milestone onto other windows in the same session.
-    pub inherit_milestone_from_desk: bool,
-}
-
-/// Fields decoded from the first matching rule.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Classified {
-    /// Rule or capture `role`.
-    pub role: Option<String>,
-    /// Capture `project`, else session alias / session name.
-    pub project: Option<String>,
-    /// Capture `milestone`.
-    pub milestone: Option<String>,
-    /// Capture `epic`.
-    pub epic: Option<String>,
-    /// Capture `ticket`.
-    pub ticket: Option<String>,
-    /// Capture `goal`.
-    pub goal: Option<String>,
-    /// Window name contains the parked substring.
-    pub parked: bool,
+/// One `[[reinterpreter]]` table: a scope, a regex, and the text that replaces
+/// what the regex matched. Nothing here reaches the tree — it rewrites one
+/// row's displayed text and can do nothing else, because the tree it would
+/// have to reach already exists by the time any of this is read.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Reinterpreter {
+    /// Which kind of row this entry may relabel.
+    pub scope: Scope,
+    /// Regex matched against the raw tmux name.
+    pub pattern: String,
+    /// Replacement for the matched span. `$name` refers to a named capture.
+    pub label: String,
 }
 
 impl Config {
     /// Return a configuration whose tables have no effect on the tmux census.
     pub fn empty() -> Self {
         Self::default()
-    }
-
-    /// Whether this file asks for a folded tree.
-    pub fn projects(&self) -> bool {
-        !self.rule.is_empty() && !self.tree.folders.is_empty()
-    }
-
-    /// Return the display alias for `session`, when one is configured.
-    pub fn session_alias<'a>(&'a self, session: &str) -> Option<&'a str> {
-        self.sessions.alias.get(session).map(String::as_str)
     }
 
     /// Whether `session` matches an infrastructure pattern.
@@ -97,12 +71,8 @@ impl Config {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(default)]
 pub struct SessionsConfig {
-    /// Raw tmux session name to displayed session name.
-    pub alias: BTreeMap<String, String>,
     /// Literal or simple-glob (`*` and `?`) patterns tagged as infrastructure.
     pub infra: Vec<String>,
-    /// Future transport buckets retained for the projection ticket.
-    pub machine: Vec<String>,
 }
 
 /// Configuration under the `[status]` table.
@@ -203,91 +173,28 @@ pub fn load_from_str(text: &str) -> Result<Config, ConfigError> {
     let config: Config = toml::from_str(text).map_err(|source: toml::de::Error| {
         ConfigError::Toml { path: None, span: source.span(), message: source.message().to_string() }
     })?;
-    validate_rules(&config)?;
+    validate_reinterpreters(&config)?;
     Ok(config)
 }
 
-fn validate_rules(config: &Config) -> Result<(), ConfigError> {
-    for (index, rule) in config.rule.iter().enumerate() {
-        if rule.window.is_empty() {
-            return Err(ConfigError::Toml {
-                path: None,
-                span: None,
-                message: format!("rule {index} is missing window"),
-            });
+fn validate_reinterpreters(config: &Config) -> Result<(), ConfigError> {
+    let invalid = |index: usize, what: &str| ConfigError::Toml {
+        path: None,
+        span: None,
+        message: format!("reinterpreter {index} {what}"),
+    };
+    for (index, entry) in config.reinterpreter.iter().enumerate() {
+        if entry.pattern.is_empty() {
+            return Err(invalid(index, "has an empty pattern"));
         }
-        Regex::new(&rule.window).map_err(|error| ConfigError::Toml {
-            path: None,
-            span: None,
-            message: format!("rule {index} window: {error}"),
-        })?;
-        if let Some(session) = &rule.session {
-            Regex::new(session).map_err(|error| ConfigError::Toml {
-                path: None,
-                span: None,
-                message: format!("rule {index} session: {error}"),
-            })?;
+        // A label that paints nothing is caught here rather than at render
+        // time, where the row would silently fall back and look unmatched.
+        if entry.label.trim().is_empty() {
+            return Err(invalid(index, "has a label that displays nothing"));
         }
+        Regex::new(&entry.pattern).map_err(|error| invalid(index, &format!("pattern: {error}")))?;
     }
     Ok(())
-}
-
-/// Classify `win` with the first matching rule. `None` means unmatched.
-pub fn classify(win: &crate::tmux::Win, config: &Config) -> Option<Classified> {
-    for rule in &config.rule {
-        if let Some(session) = &rule.session {
-            let Ok(regex) = Regex::new(session) else {
-                continue;
-            };
-            if !regex.is_match(&win.session) {
-                continue;
-            }
-        }
-        let Ok(regex) = Regex::new(&rule.window) else {
-            continue;
-        };
-        let Some(captures) = regex.captures(&win.name) else {
-            continue;
-        };
-        let mut classified = Classified {
-            role: named(&captures, "role").or_else(|| rule.role.clone()),
-            project: named(&captures, "project"),
-            milestone: named(&captures, "milestone"),
-            epic: named(&captures, "epic"),
-            ticket: named(&captures, "ticket"),
-            goal: named(&captures, "goal"),
-            parked: parked_name(&win.name, config),
-        };
-        if classified.project.is_none() {
-            classified.project = config
-                .session_alias(&win.session)
-                .map(str::to_string)
-                .or_else(|| Some(win.session.clone()));
-        }
-        if classified.milestone.is_none() {
-            classified.milestone = milestone_from_session(&win.session);
-        }
-        return Some(classified);
-    }
-    None
-}
-
-fn named(captures: &regex::Captures<'_>, name: &str) -> Option<String> {
-    captures.name(name).map(|value| value.as_str().to_string()).filter(|value| !value.is_empty())
-}
-
-fn parked_name(name: &str, config: &Config) -> bool {
-    !config.status.parked_substring.is_empty() && name.contains(&config.status.parked_substring)
-}
-
-fn milestone_from_session(session: &str) -> Option<String> {
-    let rest = session.split("-ms").nth(1)?;
-    let digits: String = rest.chars().take_while(|character| character.is_ascii_digit()).collect();
-    if digits.is_empty() {
-        None
-    } else {
-        Some(digits)
-    }
 }
 
 fn selected_path() -> Option<PathBuf> {
@@ -334,7 +241,98 @@ fn glob_matches(pattern: &str, value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::glob_matches;
+    use std::fs;
+    use std::path::Path;
+
+    use super::{glob_matches, load_from_path, load_from_str, Config, Scope};
+    use crate::label::reinterpret;
+
+    /// The example this repository ships and publishes, read from the working
+    /// tree. A published example that no longer exists, or that the real
+    /// parser no longer accepts, fails here rather than on an operator's host.
+    fn shipped_example() -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/config.toml");
+        fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("shipped example {}: {error}", path.display()))
+    }
+
+    /// A line of the shipped example, and what a seeded break replaces it
+    /// with. Each case checks that its own substitution applied: a break that
+    /// silently failed to match would report "rejected" while testing nothing.
+    fn seeded_breaks(example: &str) -> Vec<(&'static str, String)> {
+        let cases = [
+            ("scope outside the closed set", "scope = \"session\"", "scope = \"galaxy\""),
+            (
+                "pattern that is not a regex",
+                "pattern = \"^ops-(?P<rest>.+)$\"",
+                "pattern = \"^ops-(?P<rest>.+$\"",
+            ),
+            ("label that displays nothing", "label = \"operations $rest\"", "label = \"\""),
+            ("entry with no pattern at all", "pattern = \"^ops-(?P<rest>.+)$\"\n", ""),
+        ];
+        cases
+            .into_iter()
+            .map(|(name, from, to)| {
+                assert!(example.contains(from), "{name}: anchor {from:?} is not in the example");
+                let broken = example.replacen(from, to, 1);
+                assert_ne!(broken, example, "{name}: the seeded break did not apply");
+                (name, broken)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn shipped_config_parses() {
+        let example = shipped_example();
+        let config = load_from_str(&example).expect("the shipped example parses");
+
+        // Parsing alone proves little: a schema that ignores what it does not
+        // recognise accepts an example made entirely of typos. Require the
+        // example to be live through the real display path instead.
+        for (scope, raw, expected) in [
+            (Scope::Session, "ops-cache", "operations cache"),
+            (Scope::Window, "api-deploy-staging", "api to staging"),
+            (Scope::Pane, "0:bash", "pane 0 running bash"),
+        ] {
+            let shown = reinterpret(scope, raw, &config);
+            assert_ne!(shown, raw, "the {scope:?} example rule never fires on {raw:?}");
+            assert!(shown.contains(expected), "{scope:?}: {shown:?} lacks {expected:?}");
+            assert!(shown.contains(raw), "{scope:?}: {shown:?} hides its raw source {raw:?}");
+        }
+
+        // The tables the example also publishes must survive the same parse.
+        assert!(config.is_infra("ops-cache"), "the example's infra glob was dropped");
+        assert!(!config.is_infra("work"));
+        assert!(config.status.running.iter().any(|command| command == "claude"));
+        assert_eq!(config.status.parked_substring, "PARKED");
+    }
+
+    #[test]
+    fn shipped_config_rejects_seeded_break() {
+        let example = shipped_example();
+        // Positive control: the instrument is pointed at something it accepts,
+        // so a rejection below is about the break and not about the method.
+        load_from_str(&example).expect("the unbroken example parses");
+
+        for (name, broken) in seeded_breaks(&example) {
+            let error = load_from_str(&broken)
+                .err()
+                .unwrap_or_else(|| panic!("{name}: the broken example was accepted"));
+            assert!(!error.to_string().is_empty(), "{name}: rejected with no diagnostic");
+        }
+    }
+
+    #[test]
+    fn empty_and_devnull_paths_load_a_neutral_config() {
+        // The immutable gate reads the live tree with FACTORY_TUI_CONFIG
+        // pointed at /dev/null. That only means "raw tmux" if an empty file
+        // loads as a configuration which changes nothing.
+        assert_eq!(load_from_str("").expect("empty text parses"), Config::empty());
+        let dev_null = Path::new("/dev/null");
+        if dev_null.exists() {
+            assert_eq!(load_from_path(dev_null).expect("/dev/null parses"), Config::empty());
+        }
+    }
 
     #[test]
     fn simple_globs_match_whole_session_names() {

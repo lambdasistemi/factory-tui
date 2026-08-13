@@ -1,0 +1,32 @@
+# Generic example. Copy to ~/.config/factory-tui/config.toml and edit.
+# Without this file factory-tui shows tmux as it is: session -> window -> pane.
+
+[sessions]
+# Whole-name globs (`*`, `?`). A matching session is tagged [infra].
+infra = ["ops-*"]
+
+[status]
+running = ["claude", "codex", "codex-raw"]
+idle = ["bash", "zsh", "fish", "sh"]
+parked_substring = "PARKED"
+
+# Ordered label-only rules. The first entry whose scope and pattern match a row
+# rewrites what that row displays and nothing else, and the raw tmux name stays
+# visible in the rewritten label. `scope` is one of session, window, pane;
+# `pattern` is matched against the raw name and the span it matches is replaced
+# by `label`, where `$name` is a named capture. An unmatched row renders raw.
+
+[[reinterpreter]]
+scope = "session"
+pattern = "^ops-(?P<rest>.+)$"
+label = "operations $rest"
+
+[[reinterpreter]]
+scope = "window"
+pattern = "^(?P<service>[a-z]+)-deploy-(?P<env>[a-z]+)$"
+label = "$service to $env"
+
+[[reinterpreter]]
+scope = "pane"
+pattern = "^(?P<index>[0-9]+):(?P<command>.+)$"
+label = "pane $index running $command"
