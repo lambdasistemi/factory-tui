@@ -409,6 +409,8 @@ mod tests {
                 active: true,
                 cmd: command.to_string(),
                 path: "/tmp".to_string(),
+                // Tree shape does not read pane titles.
+                title: String::new(),
             }],
         }
     }

@@ -16,6 +16,10 @@ pub struct Pane {
     pub active: bool,
     pub cmd: String,
     pub path: String,
+    /// Whatever the pane set as its tmux title. Any process in the pane can
+    /// write this with one escape sequence, so it stays untrusted until a
+    /// display label is composed from it.
+    pub title: String,
 }
 
 /// One window, every pane, plus the session that holds it.
@@ -60,7 +64,14 @@ fn parse_pane(f: &[&str]) -> Option<Pane> {
         active: f[6].trim() == "1",
         cmd: f[7].to_string(),
         path: f[8].to_string(),
+        // RED: the census does not obtain a title yet.
+        title: String::new(),
     })
+}
+
+/// Group one `list-panes` census into windows. RED: not implemented.
+fn parse_query(_raw: &str) -> Vec<Win> {
+    unimplemented!("the census does not obtain or carry #{{pane_title}} yet")
 }
 
 /// Every window on the host, each with its panes.
@@ -155,10 +166,98 @@ pub fn focus(session: &str, window_id: &str, pane: Option<&str>) -> io::Result<(
 
 #[cfg(test)]
 mod tests {
-    use super::strip_ansi;
+    use super::{parse_query, strip_ansi};
+
+    /// The eight window fields the census asks for, in order.
+    const WIN: [&str; 8] = ["work", "1", "@7", "3", "editor", "1", "180", "48"];
+
+    /// One census row in the exact shape `query_all` requests from tmux.
+    fn row(window: &[&str], pane: &[&str]) -> String {
+        window.iter().chain(pane.iter()).copied().collect::<Vec<_>>().join("\t")
+    }
 
     #[test]
     fn strip_csi_and_cr() {
         assert_eq!(strip_ansi("\u{1b}[32mhello\u{1b}[0m\r\nworld"), "hello\nworld");
+    }
+
+    #[test]
+    fn query_parser_preserves_all_fields_after_title_extension() {
+        let raw = format!(
+            "{}\n{}\n",
+            row(
+                &WIN,
+                &["%11", "0", "0", "0", "90", "48", "1", "claude", "/code/factory-tui", "owner-1"]
+            ),
+            row(
+                &WIN,
+                &["%12", "1", "90", "0", "90", "48", "0", "claude", "/code/factory-tui", "auditor-1"]
+            ),
+        );
+
+        let wins = parse_query(&raw);
+        assert_eq!(wins.len(), 1, "both rows name window @7");
+
+        let w = &wins[0];
+        assert_eq!(w.session, "work");
+        assert_eq!(w.id, "@7");
+        assert_eq!(w.index, "3");
+        assert_eq!(w.name, "editor");
+        assert_eq!((w.w, w.h), (180, 48));
+        assert_eq!(w.panes.len(), 2);
+
+        let p = &w.panes[0];
+        assert_eq!(p.id, "%11");
+        assert_eq!(p.index, "0");
+        assert_eq!((p.left, p.top, p.width, p.height), (0, 0, 90, 48));
+        assert!(p.active);
+        assert_eq!(p.cmd, "claude");
+        assert_eq!(p.path, "/code/factory-tui");
+        assert_eq!(p.title, "owner-1");
+
+        // Same command, different title: the distinction the ticket exists for.
+        let q = &w.panes[1];
+        assert_eq!(q.cmd, p.cmd);
+        assert_eq!(q.title, "auditor-1");
+        assert_eq!((q.left, q.top), (90, 0));
+        assert!(!q.active);
+    }
+
+    #[test]
+    fn query_parser_rejects_pre_extension_field_count() {
+        // The pre-title census shape. The row-length guard and the pane slice
+        // must agree about it: a guard that still admits 17 fields would slice
+        // out of range, and a slice that still stops at 17 would drop the title
+        // the test above requires.
+        let short =
+            row(&WIN, &["%11", "0", "0", "0", "90", "48", "1", "claude", "/code/factory-tui"]);
+        assert_eq!(short.split('\t').count(), 17);
+        assert!(parse_query(&short).is_empty(), "a titleless row carries no pane");
+
+        // One malformed row must not take the rest of the census with it.
+        let good = row(&WIN, &["%12", "1", "90", "0", "90", "48", "0", "bash", "/tmp", "auditor-1"]);
+        let wins = parse_query(&format!("{short}\n{good}\n"));
+        assert_eq!(wins.len(), 1);
+        assert_eq!(wins[0].panes.len(), 1);
+        assert_eq!(wins[0].panes[0].id, "%12");
+        assert_eq!(wins[0].panes[0].title, "auditor-1");
+    }
+
+    #[test]
+    fn query_parser_keeps_earlier_fields_when_title_contains_tab() {
+        // Titles are attacker-controlled and may contain the field separator.
+        // The title is requested last precisely so that can only add trailing
+        // fields — never shift an earlier one.
+        let raw = row(
+            &WIN,
+            &["%11", "0", "0", "0", "90", "48", "1", "claude", "/code/factory-tui", "split\there"],
+        );
+
+        let wins = parse_query(&raw);
+        assert_eq!(wins.len(), 1);
+        let p = &wins[0].panes[0];
+        assert_eq!(p.cmd, "claude");
+        assert_eq!(p.path, "/code/factory-tui", "the path must not absorb the title");
+        assert_eq!(p.title, "split", "an embedded tab truncates the title, it never shifts");
     }
 }
