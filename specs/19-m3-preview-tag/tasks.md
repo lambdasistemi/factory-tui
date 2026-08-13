@@ -9,6 +9,10 @@ Artifact ceiling: 80 lines / 4 KiB.
 - [x] **T019-03** Add M3 preview user/operator documentation satisfying RQ-005 and RQ-006.
 - [x] **T019-04** Prove forbidden production release files remain byte-identical to the slice base.
 
+## SL-002 — audit wording correction
+
+- [ ] **T019-04A** Align the Nix check comment with the independently audited mutation coverage, without changing behavior.
+
 ## OP-001 — publication evidence
 
 - [ ] **T019-05** After Q-002 authorization and merge, push `milestone-3-preview.1` at the accepted commit.

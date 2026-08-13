@@ -18,6 +18,10 @@ The preview line uses a Git tag namespace that does not match the existing `v*` 
 
 Deliver RQ-001 through RQ-006 and invariants INV-NS, INV-PRODUCT, INV-MARK, and INV-CI in one bisect-safe commit. This slice may add tag-policy validation, its permanent automated proof, CI wiring, and preview documentation. It may not alter the production release path or crate behavior.
 
+### SL-002 — audit wording correction
+
+Correct the tag-policy check comment so it claims only the permissive-validator failure mode mechanically established by SL-001. This slice changes no executable behavior and must not claim that future deletion of an assertion or CI wiring is already detected.
+
 ### OP-001 — authorized publication evidence
 
 After SL-001 is merged and Q-002 is answered, create `milestone-3-preview.1` at the accepted merged commit and establish INV-NO-RUN, INV-INSTALL, and INV-LATEST. This phase creates no repository commit.
