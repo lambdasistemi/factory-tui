@@ -11,6 +11,7 @@ Order only — no bar widths, because none of this work is estimated.
 ```mermaid
 flowchart TD
   M2["✅ M2 — tmux browser + projection (v0.1.0)"]
+  TE["🟡 #24 truthful version + build provenance"]
   EA["🟡 #15 E-A — status is sampled, not assumed"]
   EA1["🟡 #16 crate: named evidence samplers"]
   EA2["⏳ #17 census-driven sampler recipes"]
@@ -21,7 +22,9 @@ flowchart TD
   ACC["⏳ M3 acceptance → release becomes satisfiable"]
   M1["❓ M1 — unvalidated experiment, not reopened here"]
 
-  M2 --> EA
+  M2 --> TE
+  TE --> EA
+  TE --> TB
   EA --> EA1 --> EA2
   EA1 --> EA3
   TB --> ART
@@ -40,7 +43,7 @@ flowchart TD
 | #19 T-B — milestone tag line | 🟡 active | blocked once on an unsafe publisher; unblocked by A-003 — a non-`v*` tag that triggers no workflow. Baseline green |
 | milestone artifact | ⛔ blocked | nothing a stranger can install yet; blocks the outcome audit — not the fixes. Unblocked by T-B |
 | outcome audit | ⏳ queued | runs against the published artifact, never a source build |
-| T-D — pane titles | 🟡 active | operator-reported: boxes read `N:claude`; `#{pane_title}` is never queried. Lane requested |
+| #22 T-D — pane titles | 🟡 active | operator-reported: boxes read `N:claude`; `#{pane_title}` was never queried at all. PR #23 draft |
 | T-C — window composite preview | ⏳ queued | operator-reported: preview is pane-scoped, but the window is the jump target. Design settled; sequenced after T-D |
 | M1 | ❓ unknown | unvalidated experiment; deliberately untouched by M3 |
 

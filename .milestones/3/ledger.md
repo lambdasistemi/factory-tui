@@ -45,7 +45,8 @@ separately authorized act (D-2026-08-13-m3-no-bugs).
 |---|---|---|---|---|
 | E-A (#15) | epic | Status is sampled, not assumed: samplers replace pane occupancy; published schema, example, census and default recipes move with it; agent-agnosticism gets an enforcing check | DISPATCHED — brief `/tmp/ms-3/e-a/brief.md` sha256 `c6fc721310faddea` (amended post-build with the host disk-lock constraint; the machine owner's build-time verification of `03039c79220307e7` predates that amendment); **LIVE** pane `%6422` (@4478), codex-raw/gpt-5.6-sol/high; acknowledged (tag format corrected by NOTE-001) | `factory-tui-ms3-e-unknown-status-samplers` |
 | T-B (#19) | ticket | A clearly-marked milestone pre-release line a stranger can install, which cannot displace the product line | DISPATCHED — brief `/tmp/ms-3/t-b/brief.md` sha256 `c1ed3c92081ac9ca`; **LIVE** pane `%6423` (@4479), codex-raw/gpt-5.6-sol/high; `START` received; first tag push gated on Q-002 | `factory-tui-ms3-t-unknown-prerelease-line` |
-| T-D | ticket | Pane boxes carry the real tmux pane title, so a reader can tell which seat is which | DISPATCHED — brief written; lane requested | `factory-tui-ms3-t-unknown-pane-titles` (requested) |
+| T-D (#22) | ticket | Pane boxes carry the real tmux pane title, so a reader can tell which seat is which | **LIVE** pane `%6433`, PR #23 draft; `#{pane_title}` was never queried at all |
+| T-E (#24) | ticket | Truthful version and build provenance: kill the hardcoded 0.0.1, make a build say which commit it is | **LIVE** pane `%6438`; ranked FIRST — operator-reported, and nothing else is distinguishable until it lands | `factory-tui-ms3-t-unknown-build-provenance` |
 | T-C | ticket | Preview a WINDOW as a composite quadrant, each pane filled with its own content; zoom-on-demand; hybrid refresh | QUEUED — design settled, sequenced after T-D (same `ui.rs` region) | not yet requested |
 
 Both children filed their own issues, as their contracts required — this
@@ -64,6 +65,12 @@ desk filed nothing.
 
 ## Priority order
 
+0. **T-E (#24)** — promoted above everything on operator report. The
+   artifact misreports its own version, so no build can be told from any
+   other. Both the branch-key workflow and a distinguishable milestone
+   artifact are blocked behind it, and a milestone audited by "a stranger
+   installs the artifact" cannot be audited while the artifact lies about
+   which build it is.
 1. **E-A** — the milestone's named defect. The product's central claim
    ("this seat is working") is false today for every claude/codex desk;
    everything else in M3 is cosmetic beside it. Brief directs it first
@@ -133,9 +140,42 @@ the rest by direct source reading at `main`.
   every claude seat reads `N:claude`. tmux already holds good titles.
   Operator-reported. (T-D)
 
+- **D12 — the artifact lies about itself.** `nix/crane.nix:16` hardcodes
+  `version = "0.0.1"` — the only `version` in `nix/` — so the `v0.1.0`
+  release installs as `factory-tui-0.0.1` while `Cargo.toml` says
+  `0.1.0` at that tag. release-please's bump has never reached an
+  artifact. There is also **no runtime version surface at all** (zero
+  `--version`/`CARGO_PKG` in `src/`), so two builds from different
+  commits are indistinguishable except by store hash. Operator-reported
+  as "the lie about F1". (T-E / #24)
+- **D13 — nothing binds F1 to the release.** The popup binding is bare
+  `factory-tui` off `$PATH`, so it is the released build only by
+  convention; a profile change silently repoints it while it is still
+  described as the release. Same class as false RUNNING: a claim with no
+  enforcing mechanism. Folded into T-E's provenance surface — a reader
+  must be able to see what they are running.
+
 Explicitly **not** M3 work: M1 validation and the M1 research pages
 (D-2026-08-13-m1-unvalidated); tagging, packaging or announcing the
 product release.
+
+## Running an in-flight build — proven mechanism
+
+Any branch runs without installing, without touching the profile, and
+without the GitHub API:
+
+```
+nix run 'git+https://github.com/lambdasistemi/factory-tui?ref=<branch>'
+```
+
+Verified 2026-08-13: exit 0, zero disk when cached. **Do not use the
+idiomatic `github:owner/repo/<ref>` form** — Nix resolves it through the
+GitHub API, which is HTTP 403 rate-limited on this host; `git+https:`
+uses the git protocol and never touches it.
+
+This is how the operator tests in-flight work instead of only the release
+(F1 = released profile build, another key = a branch). It is inert until
+T-E lands, because every build currently reports `0.0.1`.
 
 ## Preview model
 
