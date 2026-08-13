@@ -11,7 +11,7 @@ Record
   ✅ constitution
   ✅ flat-land / compositor / decisions
   🟡 GitHub milestone #1 + issue #1 + PR
-  ⏳ wiki M1-State (first wiki page after merge)
+  ✅ wiki M1-State
   ⏳ Pages deploy of docs/ on main
 
 Prototype (browse camera)
