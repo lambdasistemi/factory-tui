@@ -57,8 +57,8 @@ in
   '';
 
   # Both-way proof of the M3 preview tag namespace (tests/release/milestone-tag).
-  # `.github/workflows/ci.yml` builds this check by name, so a removed or
-  # permissive assertion turns a named CI job red rather than passing quietly.
+  # `.github/workflows/ci.yml` builds this check by name. Its self-check makes
+  # a permissive validator turn the named CI job red rather than pass quietly.
   tag-policy = pkgs.runCommand "factory-tui-tag-policy"
     {
       nativeBuildInputs = with pkgs; [
