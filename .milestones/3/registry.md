@@ -93,18 +93,52 @@ owner:     T-A (wiring) + project owner (Q-001, the M1-page occurrences)
 
 ## C7 — milestone artifact ⇄ product release line
 
-parties:   `scripts/release/check-version-consistency`,
-           `scripts/release/extract-notes`, release-please
-           (`.release-please-manifest.json` = `0.1.0`), the tag-triggered
-           `v*` workflows, `nix profile add github:...`
-invariant: the milestone can publish a clearly-marked pre-release a
-           stranger can install, and that pre-release can never be mistaken
-           for — or displace — the product line.
-enforced:  NONE, and the pipeline currently rejects it. A tag such as
-           `v0.1.1-ms3.1` fails `check-version-consistency` (it requires
-           tag == `Cargo.toml` version exactly, today `0.1.0`) and yields
-           empty `extract-notes` (no matching `## ` heading). Meanwhile
-           both release workflows fire on `tags: ["v*"]`, so an
-           unmarked pre-release tag would publish and could take "Latest"
-           from `v0.1.0` — worse than having no artifact at all.
+parties:   the tag-triggered `v*` workflows (`linux-release.yml`,
+           `darwin-release.yml`), release-please
+           (`.release-please-manifest.json` = `0.1.0`), the pinned
+           publisher `paolino/dev-assets@v0.1.0`,
+           `nix profile add github:...`
+invariant: the milestone publishes something a stranger can install, and
+           it can never be mistaken for — or displace — the product line.
+enforced:  DESIGNED 2026-08-13 by A-003; not yet built. **Changed** from
+           the original "GitHub pre-release" design after T-B inspected
+           the pinned publisher's source and found it invokes
+           `gh release create` with neither `--prerelease` nor
+           `--latest=false`, so a `v0.1.1-ms3.1` tag would have published
+           an ordinary release and taken Latest from `v0.1.0`.
+
+           The artifact is now a milestone-scoped git tag whose name does
+           **not** match `v*`. No publisher runs and no release object
+           exists, so "cannot displace Latest" holds **by construction**
+           rather than by a flag someone must remember to pass.
+
+           Verified, not assumed: only `linux-release.yml` and
+           `darwin-release.yml` are tag-triggered and both match `v*`
+           exactly (`ci`, `release`, `deploy-docs` are branch/dispatch);
+           Nix resolves arbitrary refs — `main` -> `8a273de`,
+           `v0.1.0` -> `40c0c51` — so
+           `nix profile add github:lambdasistemi/factory-tui/<tag>` works
+           on any tag name.
+
+           Rejected: (a) changing `paolino/dev-assets` — shared
+           infrastructure across repositories, a cross-project change M3
+           may not make and must not depend on; (b) pre-creating the
+           release around the external action — splits one invariant
+           across workflow coordination and the action's unverified
+           create-or-view behavior, a seam with no check.
+
+           T-B must ship a check that fails if the tag name is
+           `v`-prefixed, prove no workflow run was produced (Actions API,
+           after the fact), and prove the stranger install.
+
+           Production gates `check-version-consistency` and
+           `extract-notes` are **not to be touched** — the milestone line
+           never reaches them, and loosening a production gate to serve a
+           temporary artifact is the trade this ruling avoids.
+
+           Accepted limitation, recorded not glossed: the milestone line
+           carries no prebuilt binaries for non-Nix hosts, because no
+           publisher runs. Nix is the ruled install path
+           (D-2026-08-13-nix-first), binaries are an explicit fallback,
+           and this line is temporary.
 owner:     T-B

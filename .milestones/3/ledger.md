@@ -27,13 +27,17 @@ separately authorized act (D-2026-08-13-m3-no-bugs).
 
 ## Milestone artifact
 
-- Line: `v<next>-ms3.<n>`, GitHub **pre-release**, marked temporary.
+- Line: a milestone-scoped git tag whose name does **not** match `v*`, so
+  no GitHub release object is created and no publisher runs (A-003). Exact
+  name is T-B's to choose; it must be obviously provisional.
 - Graduates into: the next product release at M3 close (release-please
-  owns the production line; the pre-release line never displaces it).
+  owns the production line; the milestone tag never displaces it) — the
+  milestone tag is retired at close.
 - Merges into it: E-A, and every standalone ticket below.
-- Status: **BLOCKED — does not exist and the pipeline currently rejects
-  it.** See contract C7 and T-B, which is briefed and lane-requested.
-  This is the day-0 artifact blocker and it gates the outcome audit.
+- Status: **DESIGNED, not yet built.** The original blocker (the pinned
+  publisher cannot mark a pre-release, so a `v*` tag could have taken
+  Latest from v0.1.0) was removed rather than managed: see C7 and A-003.
+  T-B is live and building it. Still gates the outcome audit.
 
 ## Units
 
@@ -112,6 +116,7 @@ product release.
 | Id | Question | Holder | What unblocks it |
 |---|---|---|---|
 | Q-001 | Host session names (`keri`, `0-machine`, `0-projects`) sit in `docs/m1/flat-land.md:9,45`. The privacy premise says scrub; D-2026-08-13-m1-unvalidated says leave M1 pages alone; this brief says no M1 work. Which ruling wins for these lines? | project owner | a ruling: scrub-in-place as a privacy fix, or waive with the leak recorded, or defer to an M1 milestone |
+| Q-003 | RESOLVED 2026-08-13 by A-003: pinned publisher cannot mark a pre-release. Ruled to use a non-`v*` tag with no release object rather than change shared infrastructure. | this desk | closed |
 | Q-002 | Does "no release pipeline act (tag/publish/announce)" forbid cutting the **milestone pre-release** tag, or only the product release? T-B's capability work proceeds either way; only the first tag push depends on the answer. | project owner | a ruling naming pre-release tags in or out of M3's hands |
 
 ## Registry mismatch reported upward

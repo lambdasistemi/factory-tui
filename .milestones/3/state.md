@@ -15,7 +15,7 @@ flowchart TD
   EA1["⏳ crate: named samplers, field + regex → status"]
   EA2["⏳ skill: census emits sampler fields + default recipes"]
   EA3["⏳ CI: agent-agnosticism gets an enforcing check"]
-  TB["🟡 T-B — milestone pre-release line (live; pipeline rejects the tag)"]
+  TB["🟡 T-B — milestone tag line (live; non-v tag, no release object)"]
   ART["⛔ installable milestone artifact"]
   AUD["⏳ outcome audit — against the published artifact"]
   ACC["⏳ M3 acceptance → release becomes satisfiable"]
@@ -37,7 +37,7 @@ flowchart TD
 | Unit | State | Note |
 |---|---|---|
 | E-A — status samplers | 🟡 active | **live** in pane `%6422`; the epic owner files its own issue and ordered children |
-| T-B — pre-release line | 🟡 active | **live** in pane `%6423`, building the capability. The pipeline actively rejects a pre-release tag today — that is what T-B removes |
+| T-B — milestone tag line | 🟡 active | **live** in pane `%6423`. Blocked once on an unsafe publisher; unblocked by A-003 — the artifact is a non-`v*` tag that triggers no workflow |
 | milestone artifact | ⛔ blocked | nothing a stranger can install yet; blocks the outcome audit — not the fixes. Unblocked by T-B |
 | outcome audit | ⏳ queued | runs against the published artifact, never a source build |
 | M1 | ❓ unknown | unvalidated experiment; deliberately untouched by M3 |
@@ -63,17 +63,17 @@ regexes are.
 
 | Blocker | What unblocks it |
 |---|---|
-| ⛔ No installable milestone artifact. A pre-release tag fails `check-version-consistency` (tag must equal the `Cargo.toml` version) and yields empty release notes. Both release workflows fire on `v*`, so an unmarked pre-release could take "Latest" from v0.1.0 — worse than none. | T-B: a pre-release line that is marked temporary and cannot displace the product line |
+| ⛔ No installable milestone artifact yet — design settled by A-003. A `v*` pre-release tag would fail `check-version-consistency` (tag must equal the `Cargo.toml` version) and yields empty release notes. Both release workflows fire on `v*`, so an unmarked pre-release could take "Latest" from v0.1.0 — worse than none. | T-B: a non-`v*` milestone tag — triggers no publisher, creates no release object, so it cannot become Latest by construction |
 | ⛔ Ruling D-2026-08-13-status-samplers is unimplementable as shipped: the census emits only session and window names, so the setup skill cannot pick recipes from the live box. | E-A, skill half |
 | ❓ Two rulings collide on host session names in the M1 research pages: scrub them (privacy premise) or leave M1 alone (D-2026-08-13-m1-unvalidated). Escalated as Q-001. | a project-owner ruling |
 
 ## Unenforced contracts
 
-Seven cross-boundary contracts are recorded; **all seven currently read
-`enforced: NONE`**, including the one that is actively violated (status
+Seven cross-boundary contracts are recorded. **Six still read
+`enforced: NONE`** — including the one that is actively violated (status
 semantics) and the declared-but-unwired `I5-NO-HOSTNAMES` grep, which
-exists in the specs and in neither CI nor the Nix checks. Each gets a
-commissioned check or a recorded waiver before acceptance — none stays
-silent.
+exists in the specs and in neither CI nor the Nix checks. The seventh
+(milestone artifact) moved to DESIGNED today. Each gets a commissioned
+check or a recorded waiver before acceptance — none stays silent.
 
 Full detail: `.milestones/3/registry.md` on the `milestones` branch.
