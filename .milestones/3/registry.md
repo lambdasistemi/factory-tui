@@ -7,9 +7,15 @@ it gets a commissioned check or a recorded waiver, never silence.
 
 parties:   `src/tree.rs::status_of`, `[status]` in a host `config.toml`,
            every human/agent reading `--dump` or the popup
-invariant: a seat is reported RUNNING only when the sampled evidence
-           distinguishes *working* from *occupying a pane*. A seat whose
-           work state cannot be established is left unmarked.
+invariant: **status is a property of a PANE.** A pane is reported RUNNING
+           only when sampled evidence distinguishes *working* from
+           *occupying the pane*; a pane whose state cannot be established
+           is left unmarked. A window's status is a **rollup** of its
+           panes: an unmarked pane contributes nothing, and a window whose
+           panes are all unmarked is itself unmarked — not idle. "We could
+           not tell" and "it is resting" are different claims.
+           (CHANGED 2026-08-13 by A-002: panes became first-class tree
+           nodes, so the old window-level sampling has nowhere to hide.)
 enforced:  NONE — and actively violated. `status_of` returns Running when
            any pane's `pane_current_command` string-equals a configured
            name. Reproduced 2026-08-13: window
@@ -48,9 +54,14 @@ owner:     T-A
 
 ## C4 — shipped example ⇄ crate
 
-parties:   `examples/projection.toml`, `src/config.rs`
+parties:   the shipped example configuration (was `examples/projection.toml`;
+           becomes the status-sampler + reinterpreter example once the
+           projection is deleted), `src/config.rs`
 invariant: the shipped example parses under the real `Config` and produces
-           the documented tree.
+           the documented result. (Subject retargeted 2026-08-13 by A-002;
+           the invariant itself is unchanged — it was never really about
+           projection, and nothing has ever enforced it, which is exactly
+           why the example could rot.)
 enforced:  NONE. No test or check loads `examples/projection.toml`; there
            is no `tests/` directory. The example can rot silently through
            any schema change, including T-A's.

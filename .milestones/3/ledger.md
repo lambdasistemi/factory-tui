@@ -47,6 +47,7 @@ separately authorized act (D-2026-08-13-m3-no-bugs).
 | T-B (#19) | ticket | A clearly-marked milestone pre-release line a stranger can install, which cannot displace the product line | DISPATCHED — brief `/tmp/ms-3/t-b/brief.md` sha256 `c1ed3c92081ac9ca`; **LIVE** pane `%6423` (@4479), codex-raw/gpt-5.6-sol/high; `START` received; first tag push gated on Q-002 | `factory-tui-ms3-t-unknown-prerelease-line` |
 | T-D (#22) | ticket | Pane boxes carry the real tmux pane title, so a reader can tell which seat is which | **LIVE** pane `%6433`, PR #23 draft; `#{pane_title}` was never queried at all |
 | T-E (#24) | ticket | Truthful version and build provenance: kill the hardcoded 0.0.1, make a build say which commit it is | **LIVE** pane `%6438`; ranked FIRST — operator-reported, and nothing else is distinguishable until it lands | `factory-tui-ms3-t-unknown-build-provenance` |
+| T-F | ticket | Delete the projection; tree becomes raw session -> window -> pane; label-only reinterpreters replace folding | QUEUED — decisions recorded, milestone-owned (NOT inside E-A: it reverses M2 and spans structure/config/docs/skill) | not yet requested |
 | T-C | ticket | Preview a WINDOW as a composite quadrant, each pane filled with its own content; zoom-on-demand; hybrid refresh | QUEUED — design settled, sequenced after T-D (same `ui.rs` region) | not yet requested |
 
 Both children filed their own issues, as their contracts required — this
@@ -71,7 +72,11 @@ desk filed nothing.
    artifact are blocked behind it, and a milestone audited by "a stranger
    installs the artifact" cannot be audited while the artifact lies about
    which build it is.
-1. **E-A** — the milestone's named defect. The product's central claim
+0b. **T-F** — the raw-tree reversal. Ordered ahead of the sampler work
+   because building status semantics against a tree shape that is being
+   deleted wastes the work.
+1. **E-A** — the milestone's named defect, deliberately pushed behind
+   T-E, T-D and T-F. The product's central claim
    ("this seat is working") is false today for every claude/codex desk;
    everything else in M3 is cosmetic beside it. Brief directs it first
    and nothing worse appeared on the map.
