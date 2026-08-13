@@ -9,7 +9,7 @@ use ratatui::Frame;
 use crate::ansi;
 use crate::app::App;
 use crate::geometry::rects_for;
-use crate::tmux::{self, Pane};
+use crate::tmux::{self, Pane, Win};
 use crate::tree::{status_label, Kind, Status};
 
 impl App {
@@ -113,58 +113,16 @@ impl App {
             return;
         };
 
-        let info_h = (1 + self.peek.len() as u16).min(inner.height.saturating_sub(6)).max(1);
-        let multi = win.panes.len() > 1;
-        let schema_h = if multi { 5.min(inner.height.saturating_sub(info_h + 4)) } else { 0 };
-        let split = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(info_h),
-                Constraint::Length(schema_h),
-                Constraint::Min(3),
-            ])
-            .split(inner);
-        self.schematic_area = split[1];
-        self.preview_area = split[2];
-
-        let shown_pane = self.preview_pane_meta().cloned();
-        let mut info =
-            vec![preview_meta_line(shown_pane.as_ref(), split[0].width, win.panes.len())];
-        info.extend(self.peek.iter().cloned());
-        f.render_widget(
-            Paragraph::new(info.join("\n")).style(Style::default().add_modifier(Modifier::DIM)),
-            split[0],
-        );
-
-        if multi {
-            let rects = rects_for(&win.panes, self.schematic_area, win.w, win.h);
-            for (i, r) in rects {
-                let p = &win.panes[i];
-                let watching = self.preview_pane.as_deref() == Some(p.id.as_str());
-                let style = if watching {
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(Color::DarkGray)
-                };
-                f.render_widget(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_style(style)
-                        .title(box_title(Some(p), r.width)),
-                    r,
-                );
-            }
-        }
-
-        let preview_block = Block::default()
-            .borders(Borders::ALL)
-            .title(box_title(shown_pane.as_ref(), self.preview_area.width))
-            .border_style(Style::default().fg(Color::DarkGray));
-        let text_area = preview_block.inner(self.preview_area);
-        f.render_widget(preview_block, self.preview_area);
-
-        let shown = tail_text(&self.preview, text_area.height as usize, self.preview_from_bottom);
-        f.render_widget(Paragraph::new(shown), text_area);
+        let view = SeatView {
+            win: &win,
+            peek: &self.peek,
+            preview: &self.preview,
+            preview_pane: self.preview_pane.as_deref(),
+            preview_from_bottom: self.preview_from_bottom,
+        };
+        let (schematic_area, preview_area) = draw_seat_body(f, inner, &view);
+        self.schematic_area = schematic_area;
+        self.preview_area = preview_area;
     }
 
     fn draw_bottom(&self, f: &mut Frame, area: Rect) {
@@ -183,6 +141,74 @@ impl App {
             chunks[1],
         );
     }
+}
+
+/// Everything the seat body draws from. Keeping it independent of `App` is
+/// what lets a proof render the three pane-label sites below: a call site
+/// buried in a method that needs a live `App` is a call site nothing can
+/// watch, which is how the schematic box silently went back to composing its
+/// own identity while every test stayed green.
+struct SeatView<'a> {
+    win: &'a Win,
+    peek: &'a [String],
+    preview: &'a str,
+    preview_pane: Option<&'a str>,
+    preview_from_bottom: usize,
+}
+
+/// Draw the seat body into `inner` and return the schematic and preview
+/// rectangles the caller keeps for hit testing.
+fn draw_seat_body(f: &mut Frame, inner: Rect, view: &SeatView) -> (Rect, Rect) {
+    let win = view.win;
+    let info_h = (1 + view.peek.len() as u16).min(inner.height.saturating_sub(6)).max(1);
+    let multi = win.panes.len() > 1;
+    let schema_h = if multi { 5.min(inner.height.saturating_sub(info_h + 4)) } else { 0 };
+    let split = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(info_h), Constraint::Length(schema_h), Constraint::Min(3)])
+        .split(inner);
+    let schematic_area = split[1];
+    let preview_area = split[2];
+
+    let shown_pane = view.preview_pane.and_then(|id| win.panes.iter().find(|p| p.id == id));
+    let mut info = vec![preview_meta_line(shown_pane, split[0].width, win.panes.len())];
+    info.extend(view.peek.iter().cloned());
+    f.render_widget(
+        Paragraph::new(info.join("\n")).style(Style::default().add_modifier(Modifier::DIM)),
+        split[0],
+    );
+
+    if multi {
+        let rects = rects_for(&win.panes, schematic_area, win.w, win.h);
+        for (i, r) in rects {
+            let p = &win.panes[i];
+            let watching = view.preview_pane == Some(p.id.as_str());
+            let style = if watching {
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            f.render_widget(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(style)
+                    .title(box_title(Some(p), r.width)),
+                r,
+            );
+        }
+    }
+
+    let preview_block = Block::default()
+        .borders(Borders::ALL)
+        .title(box_title(shown_pane, preview_area.width))
+        .border_style(Style::default().fg(Color::DarkGray));
+    let text_area = preview_block.inner(preview_area);
+    f.render_widget(preview_block, preview_area);
+
+    let shown = tail_text(view.preview, text_area.height as usize, view.preview_from_bottom);
+    f.render_widget(Paragraph::new(shown), text_area);
+
+    (schematic_area, preview_area)
 }
 
 /// Fixed lead-in of the preview metadata line.
@@ -239,16 +265,19 @@ fn fit_cells(text: &str, max: u16) -> String {
 /// identity this view has always used. Never blank while a cell is free, never
 /// wider than `max_width` terminal cells.
 fn pane_label(pane: &Pane, max_width: u16) -> String {
+    // Emptiness that matters here is *visible* emptiness, not string
+    // emptiness. A combining mark, a zero-width space or a lone variation
+    // selector survives sanitation as a nonempty String and paints nothing, so
+    // testing `is_empty()` hands a blank box to the reader and calls it an
+    // identity.
     let title = sanitize_label(&pane.title);
-    let text = if title.is_empty() {
-        let fallback = sanitize_label(&format!("{}:{}", pane.index, pane.cmd));
-        if fallback.is_empty() {
-            "?".to_string()
-        } else {
-            fallback
-        }
-    } else {
+    let text = if cells(&title) > 0 {
         title
+    } else {
+        // The fallback is visible whatever the index and command are: the
+        // colon is neither control nor whitespace, so it survives sanitation
+        // and pays for at least one cell. There is no third case to guard.
+        sanitize_label(&format!("{}:{}", pane.index, pane.cmd))
     };
     fit_cells(&text, max_width)
 }
@@ -357,9 +386,30 @@ mod tests {
         }
     }
 
+    /// A pane as the schematic lays it out: same command, own title.
+    fn seat_pane(id: &str, index: &str, left: u16, title: &str) -> Pane {
+        Pane {
+            id: id.to_string(),
+            index: index.to_string(),
+            left,
+            top: 0,
+            width: 60,
+            height: 48,
+            active: left == 0,
+            cmd: "claude".to_string(),
+            path: "/code".to_string(),
+            title: title.to_string(),
+        }
+    }
+
     /// One rendered row, one character per terminal cell.
     fn row_text(buf: &Buffer, y: u16) -> String {
         (0..buf.area.width).map(|x| buf.cell((x, y)).unwrap().symbol()).collect()
+    }
+
+    /// The whole rendered frame, one line per row.
+    fn frame_text(buf: &Buffer) -> String {
+        (0..buf.area.height).map(|y| row_text(buf, y)).collect::<Vec<_>>().join("\n")
     }
 
     fn render(width: u16, height: u16, draw: impl Fn(&mut Frame)) -> Buffer {
@@ -481,6 +531,114 @@ mod tests {
             "",
             "label {label:?} painted past its ten-cell budget: {painted:?}"
         );
+    }
+
+    /// A label that occupies no terminal cells is a blank box, whatever the
+    /// String behind it says. Sanitation cannot remove these: none of them is
+    /// a control character or whitespace, so they survive as a nonempty title
+    /// and paint nothing.
+    const ZERO_CELL_TITLES: [&str; 6] = [
+        "\u{301}",                  // combining acute accent
+        "\u{200b}",                 // zero-width space
+        "\u{200d}",                 // zero-width joiner
+        "\u{fe0f}",                 // variation selector-16
+        "\u{200b}\u{200d}\u{fe0f}", // several of them together
+        "\u{301}\u{301}\u{301}",
+    ];
+
+    #[test]
+    fn pane_label_is_visible_for_every_positive_budget() {
+        // The property, not the instance: whatever the title, a positive
+        // budget must buy at least one painted cell of identity.
+        let titles = ["", "   ", "owner-1", "\u{1b}[2J", "日本語", "a\u{301}"];
+        for title in titles.iter().chain(ZERO_CELL_TITLES.iter()) {
+            let p = pane("2", "bash", title);
+            for width in 1..=40u16 {
+                let label = pane_label(&p, width);
+                assert!(
+                    cells(&label) > 0,
+                    "title {title:?} at budget {width} painted nothing: {label:?}"
+                );
+                assert!(cells(&label) <= width as usize);
+            }
+        }
+
+        // The zero-cell family specifically must reach the visible fallback,
+        // not merely be nonempty as a String.
+        for title in ZERO_CELL_TITLES {
+            assert_eq!(cells(title), 0, "fixture must occupy zero cells: {title:?}");
+            assert!(
+                !sanitize_label(title).is_empty(),
+                "fixture must survive sanitation as a String"
+            );
+            assert_eq!(pane_label(&pane("2", "bash", title), 40), "2:bash", "title {title:?}");
+        }
+
+        // The fallback shape carries its own visibility: even when the index
+        // and the command are themselves invisible, the colon pays for a cell.
+        // This is what makes a further guard unnecessary rather than merely
+        // absent.
+        for (index, cmd) in [("", ""), ("\u{200b}", "\u{fe0f}"), ("2", "bash")] {
+            let p = pane(index, cmd, ZERO_CELL_TITLES[0]);
+            assert!(
+                cells(&pane_label(&p, 40)) > 0,
+                "invisible index {index:?} and command {cmd:?} produced a blank label"
+            );
+        }
+
+        // And it must hold at the rendered sites, not just in the helper.
+        let p = pane("2", "bash", ZERO_CELL_TITLES[0]);
+        let buf = render(30, 3, |f| {
+            f.render_widget(
+                Block::default().borders(Borders::ALL).title(box_title(Some(&p), 30)),
+                Rect { x: 0, y: 0, width: 30, height: 3 },
+            );
+        });
+        assert!(row_text(&buf, 0).contains("2:bash"), "box row was {:?}", row_text(&buf, 0));
+    }
+
+    #[test]
+    fn rendered_seat_sites_show_pane_titles() {
+        // Three seats, one command: before this ticket every box read
+        // "N:claude". This renders the real seat body, so a site that goes
+        // back to composing its own identity is caught here and not only in
+        // the helpers it bypassed.
+        let panes = vec![
+            seat_pane("%1", "0", 0, "owner-1"),
+            seat_pane("%2", "1", 60, "auditor-1"),
+            seat_pane("%3", "2", 120, "watcher"),
+        ];
+        let win = Win {
+            session: "work".into(),
+            id: "@7".into(),
+            index: "3".into(),
+            name: "editor".into(),
+            w: 180,
+            h: 48,
+            panes,
+        };
+        let view = SeatView {
+            win: &win,
+            peek: &[],
+            preview: "$ cargo test",
+            preview_pane: Some("%1"),
+            preview_from_bottom: 0,
+        };
+        let buf = render(66, 20, |f| {
+            draw_seat_body(f, Rect { x: 0, y: 0, width: 66, height: 20 }, &view);
+        });
+        let frame = frame_text(&buf);
+
+        // The previewed seat is named at all three sites: its schematic box,
+        // the metadata line, and the preview block.
+        assert_eq!(frame.matches("owner-1").count(), 3, "frame was:\n{frame}");
+        // The other two seats are named in their own boxes.
+        assert_eq!(frame.matches("auditor-1").count(), 1, "frame was:\n{frame}");
+        assert_eq!(frame.matches("watcher").count(), 1, "frame was:\n{frame}");
+        // And nothing falls back while the titles are usable.
+        for inline in ["0:claude", "1:claude", "2:claude"] {
+            assert!(!frame.contains(inline), "a site composed {inline} inline:\n{frame}");
+        }
     }
 
     #[test]

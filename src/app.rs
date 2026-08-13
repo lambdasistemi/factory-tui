@@ -173,11 +173,6 @@ impl App {
         }
     }
 
-    pub fn preview_pane_meta(&self) -> Option<&crate::tmux::Pane> {
-        let id = self.preview_pane.as_ref()?;
-        self.selected_win()?.panes.iter().find(|p| &p.id == id)
-    }
-
     fn cycle_pane(&mut self, dir: isize) {
         let Some(win) = self.selected_win() else {
             return;
