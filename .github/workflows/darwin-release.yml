@@ -1,0 +1,142 @@
+name: Darwin Release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/darwin-release.yml"
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "rust-toolchain.toml"
+      - "scripts/release/**"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Release mode"
+        type: choice
+        options: [release, dev-homebrew]
+        default: release
+      tag:
+        description: "Existing tag, e.g. v0.0.1"
+        required: false
+        type: string
+      publish:
+        description: "Release mode only: upload to the release and update the tap"
+        type: choice
+        options: ["no", "yes"]
+        default: "no"
+      update_tap:
+        description: "Dev mode only: update lambdasistemi/homebrew-tap"
+        type: choice
+        options: ["yes", "no"]
+        default: "yes"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: >-
+    darwin-release-${{
+      github.ref_type == 'tag' && github.ref_name || inputs.tag || github.ref
+    }}-${{ inputs.mode || github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-release:
+    name: Build ${{ matrix.arch }} factory-tui artifacts
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64-darwin
+            runner: macos-14
+    env:
+      TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+      MODE: >-
+        ${{
+          github.event_name == 'pull_request' && 'dev-homebrew'
+          || inputs.mode
+          || 'release'
+        }}
+      PUBLISH: >-
+        ${{
+          github.event_name == 'push'
+          || (inputs.mode != 'dev-homebrew' && inputs.publish == 'yes')
+        }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag || github.ref }}
+
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            extra-substituters = https://paolino.cachix.org
+            extra-trusted-public-keys = paolino.cachix.org-1:ecmgO3CXdgSWA2cHlm4srknd/cLFMLmK3i3NrzeDFaE=
+
+      - uses: cachix/cachix-action@v17
+        with:
+          name: paolino
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Decide Homebrew tap update
+        id: tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          UPDATE_TAP: ${{ inputs.update_tap || 'yes' }}
+        run: |
+          if [ -n "$TAP_TOKEN" ]; then
+            echo "update-tap=$UPDATE_TAP" >> "$GITHUB_OUTPUT"
+          else
+            echo "update-tap=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::TAP_TOKEN is not set; skipping Homebrew tap update (binaries still publish). Set the TAP_TOKEN secret to update lambdasistemi/homebrew-tap."
+          fi
+
+      - name: Build, smoke-test, and optionally publish Darwin Homebrew artifacts
+        uses: paolino/dev-assets/darwin-homebrew-release@v0.1.0
+        with:
+          mode: ${{ env.MODE }}
+          tag: ${{ env.TAG }}
+          publish: ${{ env.PUBLISH }}
+          update-tap: ${{ steps.tap.outputs.update-tap }}
+          dev-tag: dev-homebrew
+          release-package: factory-tui-darwin-release-artifacts
+          dev-package: factory-tui-darwin-dev-homebrew-artifacts
+          release-formula: factory-tui.rb
+          dev-formula: factory-tui-dev.rb
+          release-artifact-name: darwin-release-bundle-${{ matrix.arch }}
+          dev-artifact-name: darwin-dev-homebrew-artifacts-${{ matrix.arch }}
+          tarball-pattern: factory-tui-*-${{ matrix.arch }}.tar.gz
+          installed-commands: factory-tui
+          cleanup-formulae: factory-tui factory-tui-dev
+          tap-name: lambdasistemi/tap
+          tap-repository: lambdasistemi/homebrew-tap
+          github-token: ${{ github.token }}
+          tap-token: ${{ secrets.TAP_TOKEN }}
+          release-check-command: 'scripts/release/check-version-consistency "$TAG"'
+          release-notes-command: 'scripts/release/extract-notes "$TAG"'
+          release-title: factory-tui ${{ env.TAG }}
+          dev-release-title: factory-tui dev Homebrew
+          tarball-smoke-script: |
+            if factory-tui >/tmp/exe.out 2>&1; then
+              cat /tmp/exe.out
+              exit 1
+            fi
+            cat /tmp/exe.out
+            grep -F -- "not inside tmux" /tmp/exe.out >/dev/null
+          brew-smoke-script: |
+            if factory-tui >/tmp/exe.out 2>&1; then
+              cat /tmp/exe.out
+              exit 1
+            fi
+            cat /tmp/exe.out
+            grep -F -- "not inside tmux" /tmp/exe.out >/dev/null
+            otool -L "$(which factory-tui)"

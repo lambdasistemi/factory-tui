@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Print the CHANGELOG.md section for the given tag (v<x.y.z>). Matches both the
+# hand-written "## x.y.z" and release-please's "## [x.y.z](...)" heading forms.
+set -euo pipefail
+tag="${1:?usage: extract-notes <tag>}"
+ver="${tag#v}"
+grab=0
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" == "## "* ]]; then
+    if [[ "$line" == *"$ver"* ]]; then
+      grab=1
+    elif ((grab)); then
+      break
+    fi
+    continue
+  fi
+
+  if ((grab)); then
+    printf '%s\n' "$line"
+  fi
+done < CHANGELOG.md
