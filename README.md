@@ -1,11 +1,17 @@
 # factory-tui
 
-Browse an agent factory as a **tree of seats**, not as a tmux session
-list.
+With no config, `factory-tui` shows every window under its tmux
+session; an optional file at `$FACTORY_TUI_CONFIG` (or
+`~/.config/factory-tui/config.toml`) may project that tree.
 
 A seat is one visible agent. On this host that is one tmux window. The
 app is the index and the compositor: tree on the left, a coloured
 snapshot of the selected seat on the right, Enter to jump.
+
+The optional `[sessions]` table accepts `alias`, `machine`, and
+`infra` entries; infrastructure patterns use whole-name `*` and `?`
+globs. The `[status]` table accepts `running`, `idle`, and
+`parked_substring` rules over pane commands.
 
 Milestone 1 records why the land is flat and why views must not resize
 agents:

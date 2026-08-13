@@ -1,6 +1,6 @@
-//! factory-tui — a factory-tree browser over live tmux.
+//! factory-tui — a raw tree browser over live tmux.
 //!
-//! Left: machine → project → milestone → epic → ticket.
+//! Left: session → window.
 //! Right: a text snapshot of the selected pane (`tmux capture-pane`).
 //! Enter jumps the attached client there and exits.
 //!
@@ -8,8 +8,8 @@
 
 mod ansi;
 mod app;
+mod config;
 mod geometry;
-mod parse;
 mod peek;
 mod tmux;
 mod tree;
@@ -31,8 +31,9 @@ use app::App;
 
 fn main() -> io::Result<()> {
     if env::args().any(|a| a == "--dump") {
+        let config = config::load();
         let wins = tmux::query_all()?;
-        print!("{}", tree::dump(&tree::build(wins)));
+        print!("{}", tree::dump(&tree::build(wins, &config)));
         return Ok(());
     }
 
@@ -41,13 +42,14 @@ fn main() -> io::Result<()> {
         std::process::exit(1);
     }
 
+    let config = config::load();
     enable_raw_mode()?;
     let mut out = stdout();
     execute!(out, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(out);
     let mut terminal = Terminal::new(backend)?;
 
-    let res = run(&mut terminal);
+    let res = run(&mut terminal, config);
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
@@ -55,8 +57,11 @@ fn main() -> io::Result<()> {
     res
 }
 
-fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> io::Result<()> {
-    let mut app = App::new()?;
+fn run(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    config: config::Config,
+) -> io::Result<()> {
+    let mut app = App::new(config)?;
     loop {
         terminal.draw(|f| app.draw(f))?;
         if event::poll(Duration::from_millis(800))? {
