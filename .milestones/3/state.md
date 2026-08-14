@@ -3,84 +3,94 @@
 Outcome: the published factory-tui can be called good enough to release.
 The browser does not lie about work in progress.
 
-Updated: 2026-08-13
+Updated: 2026-08-14
 Legend: ✅ done · 🟡 active/next · ⏳ queued · ⛔ blocked · ❓ unknown
+
+> **⛔ PARKED — OMNIA PAUSA, 2026-08-14T14:59:45Z, operator order via the
+> machine owner.** Machine-wide, every session and lane. This is a pause,
+> not a teardown: nothing killed, every context survives, every lane
+> resumes where it stopped. **Released only by the machine owner, scoped
+> and in writing — silence is not release.**
 
 Order only — no bar widths, because none of this work is estimated.
 
 ```mermaid
 flowchart TD
   M2["✅ M2 — tmux browser + projection (v0.1.0)"]
-  TE["🟡 #24 truthful version + build provenance"]
-  EA["🟡 #15 E-A — status is sampled, not assumed"]
-  EA1["🟡 #16 crate: named evidence samplers"]
-  EA2["⏳ #17 census-driven sampler recipes"]
-  EA3["⏳ #18 CI enforces agent-agnosticism"]
-  TB["🟡 #19 milestone tag line (non-v tag, no release object)"]
-  ART["⛔ installable milestone artifact"]
+  TE["✅ #24 truthful version + build provenance"]
+  TD["✅ #22 pane identity from tmux titles"]
+  TF["✅ #26 raw session → window → pane, projection deleted"]
+  TB["✅ #19 M3 preview-tag namespace guard"]
+  S16["⛔ #21 evidence samplers — verified, merge held"]
+  ART["⛔ milestone artifact — tag never pushed"]
+  REL["⛔ PR #29 — the only fix for F1"]
   AUD["⏳ outcome audit — against the published artifact"]
   ACC["⏳ M3 acceptance → release becomes satisfiable"]
   M1["❓ M1 — unvalidated experiment, not reopened here"]
 
-  M2 --> TE
-  TE --> EA
-  TE --> TB
-  EA --> EA1 --> EA2
-  EA1 --> EA3
-  TB --> ART
-  EA2 --> AUD
-  EA3 --> AUD
+  M2 --> TE --> TD --> TF --> TB --> S16 --> AUD
   ART --> AUD
+  REL -.->|operator decision| ART
   AUD --> ACC
   M1 -.->|out of scope| ACC
 ```
 
-## Where it stands
+## What was in flight at the pause
 
 | Unit | State | Note |
 |---|---|---|
-| #15 E-A — status samplers | 🟡 active | epic filed and cut into #16 -> #17 -> #18 in that merge order; baseline `just ci` green |
-| #19 T-B — milestone tag line | 🟡 active | blocked once on an unsafe publisher; unblocked by A-003 — a non-`v*` tag that triggers no workflow. Baseline green |
-| milestone artifact | ⛔ blocked | nothing a stranger can install yet; blocks the outcome audit — not the fixes. Unblocked by T-B |
+| #21 evidence samplers | ⛔ held | **Verified and complete.** Merge authorization deliberately withheld pending an operator decision — see below |
+| milestone artifact | ⛔ blocked | capability built and merged; the tag has never been pushed, blocked on Q-002 |
+| #29 release 0.1.1 | ⛔ blocked | the only thing that can make the released build honest |
 | outcome audit | ⏳ queued | runs against the published artifact, never a source build |
-| #22 T-D — pane titles | 🟡 active | operator-reported: boxes read `N:claude`; `#{pane_title}` was never queried at all. PR #23 draft |
-| T-C — window composite preview | ⏳ queued | operator-reported: preview is pane-scoped, but the window is the jump target. Design settled; sequenced after T-D |
-| M1 | ❓ unknown | unvalidated experiment; deliberately untouched by M3 |
+| M1 | ❓ unknown | unvalidated experiment; deliberately untouched |
 
-## The defect this milestone is named for
+Nothing was mid-build or mid-slice at the pause. No candidate abandoned,
+no pane torn down, no worktree removed.
 
-`factory-tui --dump` reports **RUNNING** for any window where a pane's
-current command is a configured agent name. That samples *occupancy*,
-not *work*.
+## What shipped today
 
-Reproduced 2026-08-13: window `factory-tui-e8-t5-raw-tree` — a finished
-lane sitting at an idle prompt with unsent text — is reported RUNNING.
-The same model fails open the other way: a seat running an unlisted
-agent is silently unmarked.
+Four tickets merged, every one of them a defect the operator reported
+rather than the board found:
 
-A sampler model of *field + regex → status* is the agreed shape, but no
-tmux field the crate currently queries separates a thinking agent from a
-waiting one. Extending that query is part of the fix, not a later
-refinement — otherwise the new model cannot do its job however good the
-regexes are.
+- **#24** — the browser can say what it is. It had been reporting `0.0.1`
+  from a hardcoded version while claiming to be the `v0.1.0` release.
+- **#22** — pane boxes carry real tmux titles instead of `2:claude`.
+- **#26** — the projection is deleted; the tree is raw
+  session → window → pane with label-only reinterpreters. This ended the
+  defect where six windows of one session rendered as three, with the
+  rest under a second, identically-titled node.
+- **#19** — a milestone-tag namespace guard, proven in both directions.
 
-## Blockers
+## The milestone's headline claim, demonstrated
+
+Same session, same moment, shipped build vs #21:
+
+| window | shipped | #21 |
+|---|---|---|
+| a finished lane at an idle prompt | `RUNNING` | **unmarked** |
+| a genuinely working seat | `RUNNING` | `RUNNING` |
+| another working seat | `RUNNING` | `RUNNING` |
+
+The first row is the reproduction this milestone opened with. The second
+and third are what make it a proof rather than a burn-down: a change that
+unmarked everything would look identical and be worthless.
+
+## Blockers, each with what releases it
 
 | Blocker | What unblocks it |
 |---|---|
-| ⛔ No installable milestone artifact yet — design settled by A-003. A `v*` pre-release tag would fail `check-version-consistency` (tag must equal the `Cargo.toml` version) and yields empty release notes. Both release workflows fire on `v*`, so an unmarked pre-release could take "Latest" from v0.1.0 — worse than none. | T-B: a non-`v*` milestone tag — triggers no publisher, creates no release object, so it cannot become Latest by construction |
-| ⛔ Ruling D-2026-08-13-status-samplers is unimplementable as shipped: the census emits only session and window names, so the setup skill cannot pick recipes from the live box. | E-A, skill half |
-| ❓ Two rulings collide on host session names in the M1 research pages: scrub them (privacy premise) or leave M1 alone (D-2026-08-13-m1-unvalidated). Escalated as Q-001. | a project-owner ruling |
+| ⛔ **#21 merge held.** The build exits 2 on the operator's existing configuration — the removed `[status]` table is rejected rather than ignored. The hard failure is judged correct; taking a breaking change is not this desk's call. | an operator ruling on whether to accept the break |
+| ⛔ **No installable milestone artifact.** The capability is built, merged and twice verified; zero tags pushed. | a ruling on whether M3 may push its own milestone-scoped tag |
+| ⛔ **The released build cannot say what it is.** `v0.1.0` rebuilds to the identical store path as the installed binary, so reinstalling cannot fix it. | merging the prepared release, which is a release act outside M3's hands |
+| ❓ Host session names in M1 research pages: the privacy premise says scrub, the M1 ruling says leave M1 alone. | a ruling on which governs |
 
-## Unenforced contracts
+## Contracts
 
-Eight cross-boundary contracts are recorded. **Seven still read
-`enforced: NONE`** — including the one that is actively violated (status
-semantics) and the declared-but-unwired `I5-NO-HOSTNAMES` grep, which
-exists in the specs and in neither CI nor the Nix checks. The seventh
-(milestone artifact) moved to DESIGNED today. C8 was registered before its
-code exists, so the check ships with the feature instead of after a defect
-teaches us to want it. Each gets a commissioned
-check or a recorded waiver before acceptance — none stays silent.
+Eight cross-boundary contracts are recorded. **Three closed today** —
+status semantics, published-schema-vs-crate, and shipped-example-vs-crate,
+each demonstrated rather than asserted. Five still read `enforced: NONE`
+and M3 cannot be accepted while any of them is silent.
 
-Full detail: `.milestones/3/registry.md` on the `milestones` branch.
+Full detail: `.milestones/3/` on the `milestones` branch —
+`registry.md`, `fkey-verification-log.md`, `merge-gate.md`.
