@@ -25,32 +25,32 @@ its invariant.
 
 ## S1 tasks
 
-- [ ] **T1** Add `SUPPORTED_SAMPLER_FIELDS` (all four already-queried fields) and
+- [x] **T1** Add `SUPPORTED_SAMPLER_FIELDS` (all four already-queried fields) and
       `sampler_field_value`. (I3)
-- [ ] **T2** Add the `Sampler` model and `[[sampler]]` parsing; remove
+- [x] **T2** Add the `Sampler` model and `[[sampler]]` parsing; remove
       `StatusConfig` after a dependency sweep. (I5)
-- [ ] **T3** Validate samplers at load: field, status, regex, name uniqueness,
+- [x] **T3** Validate samplers at load: field, status, regex, name uniqueness,
       and removed-`[status]`-key rejection. (I4, I5)
-- [ ] **T4** Replace window-level occupancy with `status_of_pane`; make rollup
+- [x] **T4** Replace window-level occupancy with `status_of_pane`; make rollup
       ignore `Unknown` children and yield `Unknown` when none is established.
       (I1, I2, I8)
-- [ ] **T5** Prove C1: waiting pane unmarked, active pane RUNNING, and a negative
+- [x] **T5** Prove C1: waiting pane unmarked, active pane RUNNING, and a negative
       control restoring command-occupancy reddens the waiting check. (I1, I2)
-- [ ] **T6** Prove C-rollup, including all-unmarked-is-not-idle under a
+- [x] **T6** Prove C-rollup, including all-unmarked-is-not-idle under a
       controlled mutation that returns `Idle`. (I8)
-- [ ] **T7** Prove C2: every supported field queried and resolvable; unsupported
+- [x] **T7** Prove C2: every supported field queried and resolvable; unsupported
       field rejected; removing a field from the query or resolver reddens the
       binding check. (I3, I4)
-- [ ] **T8** Extend the crane source filter minimally per A-001 so the published
+- [x] **T8** Extend the crane source filter minimally per A-001 so the published
       schema reaches sandboxed derivations; prove the derivation source contains
       it. (I6)
-- [ ] **T9** Update the published schema and `examples/config.toml` to the
+- [x] **T9** Update the published schema and `examples/config.toml` to the
       accepted model; bind each with a check proven red under a controlled
       mismatch. C4 loads the actual shipped file. (I6, I7)
-- [ ] **T10** Confirm reinterpreters untouched and structurally inert. (I11)
-- [ ] **T11** Record negative-control receipts for I1, I3, I6, I7, I8 and a full
+- [x] **T10** Confirm reinterpreters untouched and structurally inert. (I11)
+- [x] **T11** Record negative-control receipts for I1, I3, I6, I7, I8 and a full
       `just ci` receipt on the clean candidate. (all)
-- [ ] **T12** Pre-handback runnability gate: rebase onto then-current `main`,
+- [x] **T12** Pre-handback runnability gate: rebase onto then-current `main`,
       re-run the complete gate on the rebased head, push the exact head, and
       prove the remote branch with the `git+https:` `nix run … -- --version`
       invocation. Journal headroom, literal command, complete output, exit
@@ -65,6 +65,6 @@ New invariant:
 |---|---|---|---|
 | I13 | A-003 | `src/app.rs` and `src/main.rs` change **only** by the four authorized `tree::build` call-site substitutions. | Any other changed line in those files |
 
-- [ ] **T13** Change `tree::build` to `pub fn build(wins: Vec<Win>, samplers: &[Sampler]) -> Node`
+- [x] **T13** Change `tree::build` to `pub fn build(wins: Vec<Win>, samplers: &[Sampler]) -> Node`
       and substitute the four call sites. No other behavior change in
       `src/app.rs` or `src/main.rs`. (I13)
