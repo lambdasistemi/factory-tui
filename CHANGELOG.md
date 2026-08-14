@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1](https://github.com/lambdasistemi/factory-tui/compare/v0.1.0...v0.1.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* fall back on invisible titles and prove the real label sites ([5ce90a3](https://github.com/lambdasistemi/factory-tui/commit/5ce90a3517ef1325d7f8361389c13af32c4ffa56))
+* identify panes by tmux title ([7190a10](https://github.com/lambdasistemi/factory-tui/commit/7190a100c6052872357897e29de1d09c2cca9402))
+* identify panes by tmux title ([0c4cfbc](https://github.com/lambdasistemi/factory-tui/commit/0c4cfbc05b4aeab2443862f360befa5572532403))
+* replace projection with raw tmux tree ([ea047e0](https://github.com/lambdasistemi/factory-tui/commit/ea047e04edbcb1ab2ecad2f91b5442d6494903e4))
+* replace projection with raw tmux tree ([599f429](https://github.com/lambdasistemi/factory-tui/commit/599f429ad9b906cbb69ba323cd44c56f7fd956c6)), closes [#26](https://github.com/lambdasistemi/factory-tui/issues/26)
+* report truthful build identity ([594c882](https://github.com/lambdasistemi/factory-tui/commit/594c882cc9faf8ce4b919f796d662219f0c1c88e))
+* report truthful version and build provenance ([f3ac64a](https://github.com/lambdasistemi/factory-tui/commit/f3ac64a4f73a954123a672e4a290298a54329186))
+
 ## [0.1.0](https://github.com/lambdasistemi/factory-tui/compare/v0.0.1...v0.1.0) (2026-08-13)
 
 
