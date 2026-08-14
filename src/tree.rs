@@ -385,7 +385,7 @@ label = "$rest"
             .iter()
             .enumerate()
             .map(|(index, name)| {
-                fake_win("factory-tui", &format!("@{}", 4455 + index), name, "claude")
+                fake_win("factory-tui", &format!("@{}", 4455 + index), name, "worker")
             })
             .collect();
 
@@ -546,8 +546,8 @@ label = "$rest"
                     "@2",
                     "split",
                     vec![
-                        fake_pane("%20", "0", "claude", "owner-1"),
-                        fake_pane("%21", "1", "codex", "auditor-1"),
+                        fake_pane("%20", "0", "worker-a", "owner-1"),
+                        fake_pane("%21", "1", "worker-b", "auditor-1"),
                         fake_pane("%22", "2", "bash", ""),
                     ],
                 ),
@@ -737,7 +737,7 @@ label = "same [PARKED] [window=@999] [pane=%999]"
                     "api-deploy-staging",
                     vec![
                         fake_pane("%10", "0", "bash", ""),
-                        fake_pane("%11", "1", "claude", "owner-1"),
+                        fake_pane("%11", "1", "worker-a", "owner-1"),
                     ],
                 )],
             ),
@@ -750,8 +750,8 @@ label = "same [PARKED] [window=@999] [pane=%999]"
                         "@3",
                         "notes",
                         vec![
-                            fake_pane("%30", "0", "claude", "owner-1"),
-                            fake_pane("%31", "1", "codex", "auditor-1"),
+                            fake_pane("%30", "0", "worker-a", "owner-1"),
+                            fake_pane("%31", "1", "worker-b", "auditor-1"),
                             fake_pane("%32", "2", "bash", ""),
                         ],
                     ),
@@ -950,6 +950,170 @@ parked_substring = "PARKED"
                 "dump label for status bucket {bucket}"
             );
         }
+    }
+
+    #[test]
+    fn c1_title_evidence_distinguishes_work_from_command_occupancy() {
+        let config = config::load_from_str(
+            r#"
+[[sampler]]
+name = "busy-title"
+field = "pane_title"
+regex = "^busy:"
+status = "running"
+"#,
+        )
+        .expect("sampler config parses");
+        let wins = vec![
+            fake_win_panes(
+                "work",
+                "@1",
+                "waiting",
+                vec![fake_pane("%1", "0", "occupied", "waiting")],
+            ),
+            fake_win_panes(
+                "work",
+                "@2",
+                "active",
+                vec![fake_pane("%2", "0", "occupied", "busy: compiling")],
+            ),
+        ];
+
+        let root = built(wins, &config);
+        let waiting = &root.children[0].children[0];
+        let active = &root.children[0].children[1];
+        assert_eq!(waiting.status, Status::Unknown, "occupancy alone reported RUNNING");
+        assert_eq!(active.status, Status::Running, "matching evidence was not RUNNING");
+    }
+
+    #[test]
+    fn c2_every_supported_field_is_queried_resolved_and_evaluated() {
+        let tmux_source = include_str!("tmux.rs");
+        for (field, expected) in [
+            ("pane_current_command", "occupied"),
+            ("pane_current_path", "/tmp"),
+            ("pane_title", "busy: working"),
+            ("window_name", "queue"),
+        ] {
+            assert!(tmux_source.contains(&format!("#{{{field}}}")), "tmux does not query {field}");
+            let source = format!(
+                "[[sampler]]\nname = \"field-{field}\"\nfield = \"{field}\"\nregex = \"^{}$\"\nstatus = \"running\"\n",
+                regex::escape(expected)
+            );
+            let config = config::load_from_str(&source).expect("supported sampler parses");
+            let pane = fake_pane("%1", "0", "occupied", "busy: working");
+            let root = built(vec![fake_win_panes("work", "@1", "queue", vec![pane])], &config);
+            assert_eq!(
+                root.children[0].children[0].status,
+                Status::Running,
+                "supported field {field} was not resolved and evaluated"
+            );
+        }
+    }
+
+    #[test]
+    fn c_rollup_keeps_per_pane_status_and_all_unknown_unmarked() {
+        let config = config::load_from_str(
+            r#"
+[[sampler]]
+name = "busy"
+field = "pane_title"
+regex = "^busy:"
+status = "running"
+
+[[sampler]]
+name = "resting"
+field = "pane_title"
+regex = "^rest:"
+status = "idle"
+"#,
+        )
+        .expect("sampler config parses");
+        let root = built(
+            vec![
+                fake_win_panes(
+                    "work",
+                    "@1",
+                    "mixed",
+                    vec![
+                        fake_pane("%10", "0", "occupied", "busy: working"),
+                        fake_pane("%11", "1", "occupied", "rest: waiting"),
+                        fake_pane("%12", "2", "occupied", "unmarked"),
+                    ],
+                ),
+                fake_win_panes(
+                    "work",
+                    "@2",
+                    "unknown",
+                    vec![
+                        fake_pane("%20", "0", "occupied", "unmarked one"),
+                        fake_pane("%21", "1", "occupied", "unmarked two"),
+                    ],
+                ),
+            ],
+            &config,
+        );
+
+        let mixed = &root.children[0].children[0];
+        assert_eq!(
+            mixed.children.iter().map(|node| node.status).collect::<Vec<_>>(),
+            [Status::Running, Status::Idle, Status::Unknown]
+        );
+        assert_eq!(mixed.status, Status::Running, "Unknown lowered an established status");
+
+        let unknown = &root.children[0].children[1];
+        assert!(unknown.children.iter().all(|node| node.status == Status::Unknown));
+        assert_eq!(unknown.status, Status::Unknown, "all-unmarked became a positive idle reading");
+    }
+
+    #[test]
+    fn ordered_samplers_use_the_first_match_per_pane() {
+        let config = config::load_from_str(
+            r#"
+[[sampler]]
+name = "broad-idle"
+field = "pane_title"
+regex = "working"
+status = "idle"
+
+[[sampler]]
+name = "later-running"
+field = "pane_title"
+regex = "^busy: working$"
+status = "running"
+"#,
+        )
+        .expect("sampler config parses");
+        let root = built(
+            vec![fake_win_panes(
+                "work",
+                "@1",
+                "ordered",
+                vec![fake_pane("%1", "0", "occupied", "busy: working")],
+            )],
+            &config,
+        );
+        assert_eq!(root.children[0].children[0].status, Status::Idle);
+    }
+
+    #[test]
+    fn c4_shipped_example_sampler_has_its_documented_effect() {
+        let source = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/config.toml"),
+        )
+        .expect("actual shipped example is present");
+        assert!(source.contains("[[sampler]]"), "actual shipped example has no sampler");
+        let config = config::load_from_str(&source).expect("actual shipped example parses");
+        let root = built(
+            vec![fake_win_panes(
+                "work",
+                "@1",
+                "sample",
+                vec![fake_pane("%1", "0", "occupied", "⠁ working")],
+            )],
+            &config,
+        );
+        assert_eq!(root.children[0].children[0].status, Status::Running);
     }
 
     #[test]

@@ -261,6 +261,21 @@ mod tests {
     /// silently failed to match would report "rejected" while testing nothing.
     fn seeded_breaks(example: &str) -> Vec<(&'static str, String)> {
         let cases = [
+            (
+                "sampler field outside the supported set",
+                "field = \"pane_title\"",
+                "field = \"pane_mood\"",
+            ),
+            (
+                "sampler status outside the closed set",
+                "status = \"running\"",
+                "status = \"paused\"",
+            ),
+            (
+                "sampler regex that does not compile",
+                "regex = \"^[\\u2800-\\u28ff]\"",
+                "regex = \"[\"",
+            ),
             ("scope outside the closed set", "scope = \"session\"", "scope = \"galaxy\""),
             (
                 "pattern that is not a regex",
@@ -284,6 +299,7 @@ mod tests {
     #[test]
     fn shipped_config_parses() {
         let example = shipped_example();
+        assert!(example.contains("[[sampler]]"), "the shipped example has no sampler table");
         let config = load_from_str(&example).expect("the shipped example parses");
 
         // Parsing alone proves little: a schema that ignores what it does not
@@ -303,8 +319,9 @@ mod tests {
         // The tables the example also publishes must survive the same parse.
         assert!(config.is_infra("ops-cache"), "the example's infra glob was dropped");
         assert!(!config.is_infra("work"));
-        assert!(config.status.running.iter().any(|command| command == "claude"));
-        assert_eq!(config.status.parked_substring, "PARKED");
+        let retained = format!("{config:?}");
+        assert!(retained.contains("busy-title"), "the example sampler was ignored: {retained}");
+        assert!(retained.contains("pane_title"), "the example field was ignored: {retained}");
     }
 
     #[test]
@@ -341,5 +358,76 @@ mod tests {
         assert!(glob_matches("literal", "literal"));
         assert!(!glob_matches("ops-*", "shop-ops-cache"));
         assert!(!glob_matches("node-?", "node-ab"));
+    }
+
+    #[test]
+    fn sampler_validation_rejects_every_invalid_shape_and_the_removed_table() {
+        let cases = [
+            (
+                "unsupported field",
+                "[[sampler]]\nname = \"bad-field\"\nfield = \"pane_mood\"\nregex = \".*\"\nstatus = \"running\"\n",
+                "pane_mood",
+            ),
+            (
+                "unsupported status",
+                "[[sampler]]\nname = \"bad-status\"\nfield = \"pane_title\"\nregex = \".*\"\nstatus = \"paused\"\n",
+                "bad-status",
+            ),
+            (
+                "invalid regex",
+                "[[sampler]]\nname = \"bad-regex\"\nfield = \"pane_title\"\nregex = \"[\"\nstatus = \"idle\"\n",
+                "bad-regex",
+            ),
+            (
+                "empty name",
+                "[[sampler]]\nname = \" \"\nfield = \"pane_title\"\nregex = \".*\"\nstatus = \"idle\"\n",
+                "name",
+            ),
+            (
+                "duplicate name",
+                "[[sampler]]\nname = \"same\"\nfield = \"pane_title\"\nregex = \"one\"\nstatus = \"idle\"\n\n[[sampler]]\nname = \"same\"\nfield = \"pane_title\"\nregex = \"two\"\nstatus = \"running\"\n",
+                "same",
+            ),
+            (
+                "removed status table",
+                "[status]\nrunning = [\"occupied\"]\n",
+                "status",
+            ),
+        ];
+
+        for (case, source, diagnostic) in cases {
+            let error = load_from_str(source)
+                .err()
+                .unwrap_or_else(|| panic!("{case}: invalid configuration was accepted"));
+            assert!(
+                error.to_string().contains(diagnostic),
+                "{case}: {error} does not name {diagnostic:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn c3_published_schema_names_the_real_sampler_contract() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let schema = fs::read_to_string(root.join("skills/factory-tui/references/config.md"))
+            .expect("published schema is present");
+        let config_source = include_str!("config.rs");
+
+        assert!(schema.contains("[[sampler]]"), "published schema omits the sampler table");
+        assert!(
+            config_source.contains("pub const SUPPORTED_SAMPLER_FIELDS"),
+            "the real Config module has no supported-field declaration"
+        );
+        for field in ["pane_current_command", "pane_current_path", "pane_title", "window_name"] {
+            assert!(schema.contains(field), "published schema omits {field}");
+            assert!(config_source.contains(&format!("\"{field}\"")), "Config omits {field}");
+
+            let source = format!(
+                "[[sampler]]\nname = \"schema-{field}\"\nfield = \"{field}\"\nregex = \".*\"\nstatus = \"idle\"\n"
+            );
+            let parsed = load_from_str(&source).expect("schema-shaped sampler parses");
+            let retained = format!("{parsed:?}");
+            assert!(retained.contains(field), "real Config ignored schema field {field}");
+        }
     }
 }
