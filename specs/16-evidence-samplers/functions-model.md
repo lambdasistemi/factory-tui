@@ -76,3 +76,31 @@ No signature change. Narrow source-filter extension only, per A-001.
 ## Not modified
 
 `src/tmux.rs` `query_all` / `parse_pane`; `src/label.rs`; `src/build_info.rs`.
+
+## Amendment v4 (ruling A-003 on Q-003) — `tree::build` boundary
+
+```rust
+pub fn build(wins: Vec<Win>, samplers: &[Sampler]) -> Node
+```
+
+Replaces `pub fn build(wins: Vec<Win>, status: &StatusConfig) -> Node`.
+
+Deliberately narrowed to `&[Sampler]`, **not** `&Config`. #26 documents this
+parameter as intentionally narrow (FN-26-BUILD): raw topology is built from the
+census and the status table alone, and no reinterpreter reaches `build`.
+Widening it to `&Config` would hand `build` the reinterpreter set it is
+specifically designed not to receive, eroding a neighbouring ticket's invariant
+to satisfy this one. The existing internal adapter keeps its shape, substituting
+`sampler` for `status`.
+
+Call sites, which change by substitution only:
+
+| Site | Before | After |
+|---|---|---|
+| `src/main.rs:52` | `tree::build(wins, &config.status)` | `tree::build(wins, &config.sampler)` |
+| `src/app.rs:61` | `tree::build(wins, &config.status)` | `tree::build(wins, &config.sampler)` |
+| `src/app.rs:92` | `tree::build(tmux::query_all()?, &self.config.status)` | `tree::build(tmux::query_all()?, &self.config.sampler)` |
+| `src/app.rs:455` | `&Config::empty().status` | `&Config::empty().sampler` |
+
+No other change to `src/app.rs` or `src/main.rs` is authorized. No label,
+rendering, event-loop, or refresh behavior may change.

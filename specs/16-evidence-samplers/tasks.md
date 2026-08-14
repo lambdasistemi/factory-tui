@@ -56,3 +56,15 @@ its invariant.
       invocation. Journal headroom, literal command, complete output, exit
       status, and tested SHA. If `main` advances, rebase and re-run again.
       (I12)
+
+## Amendment v4 (ruling A-003 on Q-003)
+
+New invariant:
+
+| ID | Contract | Must hold | Observable failure |
+|---|---|---|---|
+| I13 | A-003 | `src/app.rs` and `src/main.rs` change **only** by the four authorized `tree::build` call-site substitutions. | Any other changed line in those files |
+
+- [ ] **T13** Change `tree::build` to `pub fn build(wins: Vec<Win>, samplers: &[Sampler]) -> Node`
+      and substitute the four call sites. No other behavior change in
+      `src/app.rs` or `src/main.rs`. (I13)

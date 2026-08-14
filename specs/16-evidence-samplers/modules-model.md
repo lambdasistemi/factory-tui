@@ -33,3 +33,17 @@ direction — including a field #22 later adds or removes.
 - `src/tree.rs` must not name a tmux field or status literal outside what
   `src/config.rs` defines.
 - No module gains knowledge of any agent, tool, or product name.
+
+## Amendment v4 (ruling A-003 on Q-003)
+
+`src/app.rs` and `src/main.rs` are **narrowly writable**, limited strictly to
+the four `tree::build` call-site substitutions bound in `functions-model.md`.
+
+The v3 text listing them as "not modified" was wrong: removing `StatusConfig`
+necessarily breaks callers that select `config.status`, and Rust field access
+cannot be redirected behind a method. Declaring the callers frozen while
+mandating removal of the field they read was an incomplete dependency sweep, not
+a constraint the implementation could honour.
+
+Gate check **G3e** enforces the narrowness mechanically: every changed line in
+those two files must be one of the authorized call-site substitutions.
