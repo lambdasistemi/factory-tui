@@ -5,6 +5,8 @@ Path: `$FACTORY_TUI_CONFIG`, else
 config = the raw tmux tree.
 
 Unknown top-level tables are ignored.
+The removed `[status]` table is rejected so an old configuration cannot
+silently lose all status marking during an upgrade.
 
 Nothing in this file can change the shape of the tree. The tree is
 session → window → pane, built from the tmux census before any of this
@@ -15,12 +17,33 @@ is read.
 - `infra`: list of whole-name globs (`*`, `?`). Matching sessions are
   tagged `[infra]`.
 
-## `[status]`
+## `[[sampler]]` (ordered, first match wins per pane)
 
-- `running`: pane command names (exact) → RUNNING
-- `idle`: pane command names → idle
-- `parked_substring`: if this string appears in the **window name**
-  or a pane command → PARKED
+Each entry needs all four fields:
+
+- `name`: non-blank label used in validation diagnostics. Names must be
+  unique.
+- `field`: one of `pane_current_command`, `pane_current_path`,
+  `pane_title`, or `window_name`.
+- `regex`: expression matched against the observed field value. It must
+  compile.
+- `status`: `running`, `idle`, or `parked`.
+
+```toml
+[[sampler]]
+name = "busy-title"
+field = "pane_title"
+regex = "^[\\x{2800}-\\x{28ff}]"
+status = "running"
+```
+
+Each pane is sampled independently. The first matching entry supplies its
+status. If nothing matches, the pane is unmarked; an entirely unmarked window
+also stays unmarked rather than being reported idle. Established child status
+rolls up as PARKED over RUNNING over idle.
+
+No sampler is configured by default. In particular, merely occupying a pane
+with a command does not imply that command is working.
 
 ## `[[reinterpreter]]` (ordered, first match wins)
 

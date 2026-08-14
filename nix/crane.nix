@@ -13,8 +13,20 @@ let
   # names — packages, checks, release artifacts — derives from this.
   crateName = craneLib.crateNameFromCargoToml { cargoToml = src + "/Cargo.toml"; };
 
+  # Rust checks bind the published configuration contract to the real parser.
+  # cleanCargoSource excludes Markdown, so admit exactly that one document.
+  checkedSource = pkgs.lib.cleanSourceWith {
+    inherit src;
+    filter = path: type:
+      let
+        relative = pkgs.lib.removePrefix "${toString src}/" (toString path);
+      in
+      craneLib.filterCargoSources path type
+      || relative == "skills/factory-tui/references/config.md";
+  };
+
   commonArgs = {
-    src = craneLib.cleanCargoSource src;
+    src = checkedSource;
     strictDeps = true;
     inherit (crateName) pname version;
 

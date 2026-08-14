@@ -5,10 +5,14 @@
 # Whole-name globs (`*`, `?`). A matching session is tagged [infra].
 infra = ["ops-*"]
 
-[status]
-running = ["claude", "codex", "codex-raw"]
-idle = ["bash", "zsh", "fish", "sh"]
-parked_substring = "PARKED"
+# Ordered pane-evidence rules. The first matching sampler wins. This generic
+# example treats a leading braille-block activity marker in the pane title as
+# evidence of work; adapt the fields and expressions to what your tools expose.
+[[sampler]]
+name = "busy-title"
+field = "pane_title"
+regex = "^[\\x{2800}-\\x{28ff}]"
+status = "running"
 
 # Ordered label-only rules. The first entry whose scope and pattern match a row
 # rewrites what that row displays and nothing else, and the raw tmux name stays

@@ -58,7 +58,7 @@ enum ClickTarget {
 impl App {
     pub fn new(config: Config) -> io::Result<Self> {
         let wins = tmux::query_all()?;
-        let root = tree::build(wins, &config.status);
+        let root = tree::build(wins, &config.sampler);
         let mut expanded = HashSet::new();
         expand_defaults(&root, &mut expanded);
         let mut app = Self {
@@ -89,7 +89,7 @@ impl App {
 
     pub fn refresh(&mut self) -> io::Result<()> {
         let keep = self.current().map(|r| r.id.clone());
-        self.root = tree::build(tmux::query_all()?, &self.config.status);
+        self.root = tree::build(tmux::query_all()?, &self.config.sampler);
         expand_defaults(&self.root, &mut self.expanded);
         self.rebuild_rows();
         if let Some(id) = keep {
@@ -457,7 +457,7 @@ mod tests {
                 win("@1", "solo", vec![pane("%10", "0")]),
                 win("@2", "split", vec![pane("%20", "0"), pane("%21", "1"), pane("%22", "2")]),
             ],
-            &Config::empty().status,
+            &Config::empty().sampler,
         );
         let session = &root.children[0];
         let solo = &session.children[0];
