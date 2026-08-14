@@ -15,7 +15,7 @@ let
       program = pkgs.lib.getExe app;
     };
 
-  checkNames = [ "clippy" "fmt" "nextest" "deny" "doc" "version-consistency" ];
+  checkNames = [ "clippy" "fmt" "nextest" "deny" "doc" "version-consistency" "tag-policy" ];
   checkTargets =
     pkgs.lib.concatMapStringsSep " " (n: ".#checks.${system}.${n}") checkNames;
 in
@@ -25,6 +25,7 @@ in
   clippy = mkApp "clippy" "nix build .#checks.${system}.clippy";
   fmt-check = mkApp "fmt-check" "nix build .#checks.${system}.fmt";
   deny = mkApp "deny" "nix build .#checks.${system}.deny";
+  tag-policy = mkApp "tag-policy" "nix build .#checks.${system}.tag-policy";
 
   ci = mkApp "ci" ''
     nix build \

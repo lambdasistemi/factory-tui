@@ -1,5 +1,5 @@
 # Real sandboxed crane derivations. `nix flake check` runs these.
-{ craneEnv, pkgs, packages, self, artifacts }:
+{ craneEnv, pkgs, packages, self, artifacts, src }:
 let
   inherit (craneEnv) craneLib commonArgs cargoArtifacts;
   inherit (pkgs) lib;
@@ -13,6 +13,20 @@ let
 
   onLinux = lib.optionalAttrs pkgs.stdenv.isLinux;
   rows = attrs: lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "${k}\t${v}") attrs);
+
+  # The crate derivations build `craneLib.cleanCargoSource src`, which drops the
+  # release scripts, this proof, and the docs. The tag policy check therefore
+  # needs its own source, named file by file so the check reruns exactly when
+  # something it asserts about changes.
+  tagPolicySrc = lib.fileset.toSource {
+    root = src;
+    fileset = lib.fileset.unions [
+      (src + "/Cargo.toml")
+      (src + "/docs/m3-preview.md")
+      (src + "/scripts/release")
+      (src + "/tests/release")
+    ];
+  };
 in
 {
   # Reconcile every surface that states an identity against its authority: the
@@ -40,6 +54,27 @@ in
     } ''
     bash ${../scripts/release/reconcile-identity}
     touch "$out"
+  '';
+
+  # Both-way proof of the M3 preview tag namespace (tests/release/milestone-tag).
+  # `.github/workflows/ci.yml` builds this check by name. Its self-check makes
+  # a permissive validator turn the named CI job red rather than pass quietly.
+  tag-policy = pkgs.runCommand "factory-tui-tag-policy"
+    {
+      nativeBuildInputs = with pkgs; [
+        bash
+        coreutils
+        findutils
+        gnugrep
+        gnused
+        glibcLocales
+      ];
+      LANG = "C.UTF-8";
+      LC_ALL = "C.UTF-8";
+    } ''
+    cd ${tagPolicySrc}
+    bash tests/release/milestone-tag
+    touch $out
   '';
 
   clippy = craneLib.cargoClippy (

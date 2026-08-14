@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# Permanent both-way proof of the M3 milestone preview tag namespace.
+#
+# Run directly (`nix develop -c tests/release/milestone-tag`) or through the
+# `tag-policy` flake check, which is what repository CI builds.
+#
+#   INV-NS       the DATA-001 family is accepted and every v-prefixed candidate
+#                is rejected, as a family rather than one instance.
+#   INV-PRODUCT  the namespaces are disjoint from both sides: the milestone
+#                validator rejects product tags and the untouched product
+#                validator rejects milestone tags.
+#   INV-MARK     the documented supported ref is milestone-3-preview.1 and every
+#                preview ref named in the docs is one the validator accepts.
+#
+# Section 0 proves the harness itself can fail in both directions; without it a
+# permissive validator would pass every rejection assertion silently.
+
+set -uo pipefail
+
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+VALIDATOR="$root/scripts/release/check-milestone-tag"
+product_validator="$root/scripts/release/check-version-consistency"
+doc="$root/docs/m3-preview.md"
+
+checks=0
+failures=0
+quiet=0
+
+pass() {
+  checks=$((checks + 1))
+  ((quiet)) || printf 'ok    %s\n' "$1"
+}
+
+fail() {
+  checks=$((checks + 1))
+  failures=$((failures + 1))
+  ((quiet)) || printf 'FAIL  %s\n' "$1" >&2
+}
+
+# Never inherits stdin, so a validator that blocks on input fails the run
+# instead of hanging it.
+validate() {
+  bash "$VALIDATOR" "$@" </dev/null
+}
+
+expect_accept() {
+  local tag="$1" status
+  validate "$tag" >/dev/null 2>&1
+  status=$?
+  ((status == 0)) && pass "accept ${tag@Q}" ||
+    fail "accept ${tag@Q}: exit $status, want 0"
+}
+
+# A rejection must be a decision, not an accident: 127 (missing) and 126 (not
+# executable) are failures of the proof, not negative controls.
+expect_reject() {
+  local label="$1" status
+  shift
+  validate "$@" >/dev/null 2>&1
+  status=$?
+  if ((status == 0)); then
+    fail "reject $label: exit 0, want non-zero"
+  elif ((status >= 126)); then
+    fail "reject $label: exit $status is a missing/unrunnable validator"
+  else
+    pass "reject $label"
+  fi
+}
+
+# 0. The harness must be able to fail in both directions.
+self_check() {
+  local tmp real before caught_permissive caught_strict
+  tmp="$(mktemp -d)" || { fail "self-check: mktemp -d"; return; }
+  printf 'exit 0\n' >"$tmp/always-accept"
+  printf 'exit 1\n' >"$tmp/always-reject"
+  real="$VALIDATOR"
+  quiet=1
+
+  VALIDATOR="$tmp/always-accept"
+  before=$failures
+  expect_reject "self-check probe" anything
+  caught_permissive=$((failures - before))
+
+  VALIDATOR="$tmp/always-reject"
+  before=$failures
+  expect_accept anything
+  caught_strict=$((failures - before))
+
+  quiet=0
+  VALIDATOR="$real"
+  failures=$((failures - caught_permissive - caught_strict))
+  checks=$((checks - 2))
+  rm -rf "$tmp"
+
+  ((caught_permissive == 1)) &&
+    pass "self-check: expect_reject catches an always-accepting validator" ||
+    fail "self-check: expect_reject cannot detect a permissive validator"
+  ((caught_strict == 1)) &&
+    pass "self-check: expect_accept catches an always-rejecting validator" ||
+    fail "self-check: expect_accept cannot detect a broken validator"
+}
+
+self_check
+
+# 1. FN-001 exists in the shape the frozen gate invokes directly.
+if [ -f "$VALIDATOR" ]; then
+  pass "FN-001 present at scripts/release/check-milestone-tag"
+  [ -x "$VALIDATOR" ] && pass "FN-001 is executable" ||
+    fail "FN-001 is not executable"
+  head -n 1 "$VALIDATOR" | grep -Eq '^#!.*\bbash\b' &&
+    pass "FN-001 carries a bash shebang" || fail "FN-001 has no bash shebang"
+else
+  fail "FN-001 missing at scripts/release/check-milestone-tag"
+  printf '\n%d checks, %d failures\n' "$checks" "$failures" >&2
+  exit 1
+fi
+
+# 2. DATA-001 acceptance.
+accepted=(
+  milestone-3-preview.1
+  milestone-3-preview.2
+  milestone-3-preview.10
+  milestone-3-preview.12345
+)
+for tag in "${accepted[@]}"; do expect_accept "$tag"; done
+
+# 3. INV-NS: nothing accepted may begin with `v`, as a family.
+for tag in "${accepted[@]}"; do
+  expect_reject "v-prefixed ${tag@Q}" "v$tag"
+done
+for tag in v0.1.0 v0.1.1 v0.1.1-ms3.1 v1.0.0 v0.1.0-milestone-3-preview.1; do
+  expect_reject "product tag ${tag@Q}" "$tag"
+done
+
+# 4. DATA-001 rejection: ordinal, serialization, and arity.
+expect_reject "ordinal zero" milestone-3-preview.0
+expect_reject "ordinal 00" milestone-3-preview.00
+expect_reject "leading-zero ordinal" milestone-3-preview.01
+expect_reject "negative ordinal" milestone-3-preview.-1
+expect_reject "non-decimal ordinal" milestone-3-preview.1a
+expect_reject "hex ordinal" milestone-3-preview.0x1
+expect_reject "missing ordinal" milestone-3-preview
+expect_reject "empty ordinal" milestone-3-preview.
+expect_reject "dotless ordinal" milestone-3-preview1
+expect_reject "extra suffix" milestone-3-preview.1.2
+expect_reject "prerelease suffix" milestone-3-preview.1-rc1
+expect_reject "build suffix" 'milestone-3-preview.1+build'
+expect_reject "trailing space" 'milestone-3-preview.1 '
+expect_reject "leading space" ' milestone-3-preview.1'
+expect_reject "embedded newline" $'milestone-3-preview.1\nmilestone-3-preview.2'
+expect_reject "trailing newline" $'milestone-3-preview.1\n'
+expect_reject "wrong milestone" milestone-2-preview.1
+expect_reject "wrong channel" milestone-3-rc.1
+expect_reject "uppercase" MILESTONE-3-PREVIEW.1
+expect_reject "path traversal" '../milestone-3-preview.1'
+expect_reject "empty string" ''
+expect_reject "no argument"
+expect_reject "two arguments" milestone-3-preview.1 milestone-3-preview.2
+
+# 5. FN-001 stream and side-effect contract.
+[ -z "$(validate milestone-3-preview.1 2>&1 >/dev/null)" ] &&
+  pass "accepted tag writes nothing to stderr" ||
+  fail "accepted tag wrote to stderr"
+[ -n "$(validate v0.1.0 2>&1 >/dev/null)" ] &&
+  pass "rejected tag writes a diagnostic to stderr" ||
+  fail "rejected tag wrote no diagnostic to stderr"
+[ -z "$(validate v0.1.0 2>/dev/null)" ] &&
+  pass "rejected tag writes nothing to stdout" ||
+  fail "rejected tag wrote to stdout"
+
+sandbox="$(mktemp -d)"
+(cd "$sandbox" && validate milestone-3-preview.1 >/dev/null 2>&1)
+[ -z "$(find "$sandbox" -mindepth 1 -print -quit)" ] &&
+  pass "no side effects beyond stdout/stderr" ||
+  fail "validator wrote into its working directory"
+rm -rf "$sandbox"
+
+# 6. INV-PRODUCT seam: the untouched product validator must refuse the milestone
+# namespace, and must still accept the product tag it exists for.
+if [ -x "$product_validator" ]; then
+  crate_version="$(cd "$root" && bash scripts/release/version </dev/null)"
+  (cd "$root" && bash "$product_validator" milestone-3-preview.1 \
+    >/dev/null 2>&1 </dev/null) &&
+    fail "product validator accepted milestone-3-preview.1" ||
+    pass "product validator rejects milestone-3-preview.1"
+  (cd "$root" && bash "$product_validator" "v$crate_version" \
+    >/dev/null 2>&1 </dev/null) &&
+    pass "product validator still accepts v$crate_version" ||
+    fail "product validator rejects the crate's own version tag v$crate_version"
+else
+  fail "product validator missing at scripts/release/check-version-consistency"
+fi
+
+# 7. INV-MARK: documentation and validator cannot drift apart.
+if [ -f "$doc" ]; then
+  pass "M3 preview documentation present"
+
+  # Deliberately looser than DATA-001 so a mistyped ref is caught by the
+  # validator below instead of being skipped by the extractor. One
+  # sentence-ending period is trimmed; anything else is handed over as written.
+  mapfile -t doc_refs < <(
+    grep -oE 'milestone-3-preview\.[0-9A-Za-z.+-]+' "$doc" | sed 's/\.$//' |
+      sort -u
+  )
+  ((${#doc_refs[@]} > 0)) &&
+    pass "documentation names ${#doc_refs[@]} preview ref(s)" ||
+    fail "documentation names no preview ref (nothing to check)"
+  for ref in "${doc_refs[@]}"; do expect_accept "$ref"; done
+
+  grep -Fq 'nix profile add github:lambdasistemi/factory-tui/milestone-3-preview.1' \
+    "$doc" && pass "documentation states the exact Nix install command" ||
+    fail "documentation does not state the exact Nix install command"
+
+  while IFS='|' read -r label pattern; do
+    grep -Fqi -- "$pattern" "$doc" && pass "documentation marks: $label" ||
+      fail "documentation does not mark: $label ($pattern)"
+  done <<'MARKERS'
+temporary|temporary
+first supported ref|milestone-3-preview.1
+no GitHub release|no GitHub release
+no prebuilt assets|no prebuilt
+distinct from the product release|v0.1.0
+graduation owner|release-please
+retirement|retire
+MARKERS
+else
+  fail "M3 preview documentation missing at docs/m3-preview.md"
+fi
+
+printf '\n%d checks, %d failures\n' "$checks" "$failures"
+((failures == 0))
