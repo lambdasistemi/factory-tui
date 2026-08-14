@@ -1,5 +1,6 @@
 //! Optional, host-local configuration for the raw tmux tree.
 
+use std::collections::HashSet;
 use std::env;
 use std::error::Error;
 use std::fmt;
@@ -21,8 +22,8 @@ const CONFIG_ENV: &str = "FACTORY_TUI_CONFIG";
 pub struct Config {
     /// Infrastructure patterns.
     pub sessions: SessionsConfig,
-    /// Pane-command rules used to classify window status.
-    pub status: StatusConfig,
+    /// Ordered pane-evidence rules. The first matching sampler wins.
+    pub sampler: Vec<Sampler>,
     /// Ordered label-only rules. First match in a scope wins.
     pub reinterpreter: Vec<Reinterpreter>,
 }
@@ -75,16 +76,68 @@ pub struct SessionsConfig {
     pub infra: Vec<String>,
 }
 
-/// Configuration under the `[status]` table.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
-#[serde(default)]
-pub struct StatusConfig {
-    /// Pane command names classified as running.
-    pub running: Vec<String>,
-    /// Pane command names classified as idle.
-    pub idle: Vec<String>,
-    /// Non-empty substring in a pane command classified as parked.
-    pub parked_substring: String,
+/// Tmux evidence fields that a sampler may inspect.
+pub const SUPPORTED_SAMPLER_FIELDS: &[&str] =
+    &["pane_current_command", "pane_current_path", "pane_title", "window_name"];
+
+/// One ordered `[[sampler]]` rule mapping observed evidence to a status.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Sampler {
+    /// Operator-facing identity used in validation diagnostics.
+    pub name: String,
+    /// One member of [`SUPPORTED_SAMPLER_FIELDS`].
+    pub field: String,
+    /// Regex matched against the observed field value.
+    pub regex: String,
+    /// One of `running`, `idle`, or `parked`.
+    pub status: String,
+}
+
+/// Validated sampler outcome, kept out of the tree's string vocabulary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SamplerStatus {
+    /// Evidence says the pane is working.
+    Running,
+    /// Evidence says the pane is resting.
+    Idle,
+    /// Evidence says the pane is parked.
+    Parked,
+}
+
+impl Sampler {
+    /// Whether this sampler matches one pane's observed field value.
+    pub fn matches(&self, win: &crate::tmux::Win, pane: &crate::tmux::Pane) -> bool {
+        let Some(value) = sampler_field_value(&self.field, win, pane) else {
+            return false;
+        };
+        Regex::new(&self.regex).is_ok_and(|regex| regex.is_match(value))
+    }
+
+    /// The typed outcome of a validated sampler status.
+    pub fn outcome(&self) -> Option<SamplerStatus> {
+        match self.status.as_str() {
+            "running" => Some(SamplerStatus::Running),
+            "idle" => Some(SamplerStatus::Idle),
+            "parked" => Some(SamplerStatus::Parked),
+            _ => None,
+        }
+    }
+}
+
+/// Resolve a supported sampler field to the value observed from tmux.
+pub fn sampler_field_value<'a>(
+    field: &str,
+    win: &'a crate::tmux::Win,
+    pane: &'a crate::tmux::Pane,
+) -> Option<&'a str> {
+    match field {
+        "pane_current_command" => Some(&pane.cmd),
+        "pane_current_path" => Some(&pane.path),
+        "pane_title" => Some(&pane.title),
+        "window_name" => Some(&win.name),
+        _ => None,
+    }
 }
 
 /// A configuration file could not be read or parsed.
@@ -170,11 +223,55 @@ pub fn load_from_path(path: &Path) -> Result<Config, ConfigError> {
 
 /// Parse TOML configuration from an in-memory string.
 pub fn load_from_str(text: &str) -> Result<Config, ConfigError> {
+    let raw: toml::Value = toml::from_str(text).map_err(|source: toml::de::Error| {
+        ConfigError::Toml { path: None, span: source.span(), message: source.message().to_string() }
+    })?;
+    if raw.as_table().is_some_and(|table| table.contains_key("status")) {
+        return Err(ConfigError::Toml {
+            path: None,
+            span: None,
+            message: "removed [status] table; replace it with ordered [[sampler]] entries"
+                .to_string(),
+        });
+    }
     let config: Config = toml::from_str(text).map_err(|source: toml::de::Error| {
         ConfigError::Toml { path: None, span: source.span(), message: source.message().to_string() }
     })?;
+    validate_samplers(&config)?;
     validate_reinterpreters(&config)?;
     Ok(config)
+}
+
+fn validate_samplers(config: &Config) -> Result<(), ConfigError> {
+    let mut names = HashSet::new();
+    for (index, sampler) in config.sampler.iter().enumerate() {
+        let identity = if sampler.name.trim().is_empty() {
+            format!("sampler {index}")
+        } else {
+            format!("sampler {:?}", sampler.name)
+        };
+        let invalid = |what: String| ConfigError::Toml {
+            path: None,
+            span: None,
+            message: format!("{identity} {what}"),
+        };
+
+        if sampler.name.trim().is_empty() {
+            return Err(invalid("has an empty name".to_string()));
+        }
+        if !names.insert(&sampler.name) {
+            return Err(invalid(format!("duplicates name {:?}", sampler.name)));
+        }
+        if !SUPPORTED_SAMPLER_FIELDS.contains(&sampler.field.as_str()) {
+            return Err(invalid(format!("has unsupported field {:?}", sampler.field)));
+        }
+        if sampler.outcome().is_none() {
+            return Err(invalid(format!("has unsupported status {:?}", sampler.status)));
+        }
+        Regex::new(&sampler.regex)
+            .map_err(|error| invalid(format!("has invalid regex {:?}: {error}", sampler.regex)))?;
+    }
+    Ok(())
 }
 
 fn validate_reinterpreters(config: &Config) -> Result<(), ConfigError> {
@@ -261,6 +358,21 @@ mod tests {
     /// silently failed to match would report "rejected" while testing nothing.
     fn seeded_breaks(example: &str) -> Vec<(&'static str, String)> {
         let cases = [
+            (
+                "sampler field outside the supported set",
+                "field = \"pane_title\"",
+                "field = \"pane_mood\"",
+            ),
+            (
+                "sampler status outside the closed set",
+                "status = \"running\"",
+                "status = \"paused\"",
+            ),
+            (
+                "sampler regex that does not compile",
+                "regex = \"^[\\\\x{2800}-\\\\x{28ff}]\"",
+                "regex = \"[\"",
+            ),
             ("scope outside the closed set", "scope = \"session\"", "scope = \"galaxy\""),
             (
                 "pattern that is not a regex",
@@ -284,6 +396,7 @@ mod tests {
     #[test]
     fn shipped_config_parses() {
         let example = shipped_example();
+        assert!(example.contains("[[sampler]]"), "the shipped example has no sampler table");
         let config = load_from_str(&example).expect("the shipped example parses");
 
         // Parsing alone proves little: a schema that ignores what it does not
@@ -303,8 +416,9 @@ mod tests {
         // The tables the example also publishes must survive the same parse.
         assert!(config.is_infra("ops-cache"), "the example's infra glob was dropped");
         assert!(!config.is_infra("work"));
-        assert!(config.status.running.iter().any(|command| command == "claude"));
-        assert_eq!(config.status.parked_substring, "PARKED");
+        let retained = format!("{config:?}");
+        assert!(retained.contains("busy-title"), "the example sampler was ignored: {retained}");
+        assert!(retained.contains("pane_title"), "the example field was ignored: {retained}");
     }
 
     #[test]
@@ -341,5 +455,76 @@ mod tests {
         assert!(glob_matches("literal", "literal"));
         assert!(!glob_matches("ops-*", "shop-ops-cache"));
         assert!(!glob_matches("node-?", "node-ab"));
+    }
+
+    #[test]
+    fn sampler_validation_rejects_every_invalid_shape_and_the_removed_table() {
+        let cases = [
+            (
+                "unsupported field",
+                "[[sampler]]\nname = \"bad-field\"\nfield = \"pane_mood\"\nregex = \".*\"\nstatus = \"running\"\n",
+                "pane_mood",
+            ),
+            (
+                "unsupported status",
+                "[[sampler]]\nname = \"bad-status\"\nfield = \"pane_title\"\nregex = \".*\"\nstatus = \"paused\"\n",
+                "bad-status",
+            ),
+            (
+                "invalid regex",
+                "[[sampler]]\nname = \"bad-regex\"\nfield = \"pane_title\"\nregex = \"[\"\nstatus = \"idle\"\n",
+                "bad-regex",
+            ),
+            (
+                "empty name",
+                "[[sampler]]\nname = \" \"\nfield = \"pane_title\"\nregex = \".*\"\nstatus = \"idle\"\n",
+                "name",
+            ),
+            (
+                "duplicate name",
+                "[[sampler]]\nname = \"same\"\nfield = \"pane_title\"\nregex = \"one\"\nstatus = \"idle\"\n\n[[sampler]]\nname = \"same\"\nfield = \"pane_title\"\nregex = \"two\"\nstatus = \"running\"\n",
+                "same",
+            ),
+            (
+                "removed status table",
+                "[status]\nrunning = [\"occupied\"]\n",
+                "status",
+            ),
+        ];
+
+        for (case, source, diagnostic) in cases {
+            let error = load_from_str(source)
+                .err()
+                .unwrap_or_else(|| panic!("{case}: invalid configuration was accepted"));
+            assert!(
+                error.to_string().contains(diagnostic),
+                "{case}: {error} does not name {diagnostic:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn c3_published_schema_names_the_real_sampler_contract() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let schema = fs::read_to_string(root.join("skills/factory-tui/references/config.md"))
+            .expect("published schema is present");
+        let config_source = include_str!("config.rs");
+
+        assert!(schema.contains("[[sampler]]"), "published schema omits the sampler table");
+        assert!(
+            config_source.contains("pub const SUPPORTED_SAMPLER_FIELDS"),
+            "the real Config module has no supported-field declaration"
+        );
+        for field in ["pane_current_command", "pane_current_path", "pane_title", "window_name"] {
+            assert!(schema.contains(field), "published schema omits {field}");
+            assert!(config_source.contains(&format!("\"{field}\"")), "Config omits {field}");
+
+            let source = format!(
+                "[[sampler]]\nname = \"schema-{field}\"\nfield = \"{field}\"\nregex = \".*\"\nstatus = \"idle\"\n"
+            );
+            let parsed = load_from_str(&source).expect("schema-shaped sampler parses");
+            let retained = format!("{parsed:?}");
+            assert!(retained.contains(field), "real Config ignored schema field {field}");
+        }
     }
 }

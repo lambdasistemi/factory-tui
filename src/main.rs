@@ -49,7 +49,7 @@ fn main() -> io::Result<()> {
     if env::args().any(|a| a == "--dump") {
         let config = config::load();
         let wins = tmux::query_all()?;
-        let root = tree::build(wins, &config.status);
+        let root = tree::build(wins, &config.sampler);
         print!("{}", tree::dump(&root, &config));
         return Ok(());
     }
