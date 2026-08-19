@@ -76,3 +76,13 @@ tokens like any build; `--no-verify` is not an escape. Verified across all
 control: 14 `.sample` files listed, so the check was working). That is
 point-in-time — **re-verify before the next commit**. Ledger sweeps are
 exempt by construction: `git commit-tree` runs no hooks.
+
+## Carried in from the pause — grok capacity (2026-08-19)
+
+A grok seat elsewhere reports **weekly limit left 9%**; every grok seat
+self-reports (`GROK-CAPACITY at=<ISO> seat=<pane> weekly_left=<n>%` at
+dispatch and terminal; below 5% do not start a slice). Verified by
+process on 2026-08-19: **zero grok seats in M3 lanes** (desk claude, all
+children codex-raw). Planning consequence: with `agy` revoked and grok
+near-exhausted, the practical commit-owner pool for #17/#18 on release is
+**claude and codex** under alternation; grok remains legitimate but scarce.
