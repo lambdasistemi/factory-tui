@@ -66,3 +66,13 @@ failure is a possible machine event — stop and report, never retry.
 `git+https://` not `github:`. Families: claude, codex, grok; agy revoked,
 qwen draft-only. F-key merge gate binds every feature PR. Five contracts
 still read `enforced: NONE` and M3 cannot be accepted while any is silent.
+
+## Carried in from the pause — realizing hooks (2026-08-19)
+
+`git commit` can realize via a commit hook and must then take build
+tokens like any build; `--no-verify` is not an escape. Verified across all
+10 factory-tui worktrees on 2026-08-19: **0 live hooks**, no
+`core.hooksPath` anywhere, no lefthook/pre-commit/husky configs (positive
+control: 14 `.sample` files listed, so the check was working). That is
+point-in-time — **re-verify before the next commit**. Ledger sweeps are
+exempt by construction: `git commit-tree` runs no hooks.
